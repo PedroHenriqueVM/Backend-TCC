@@ -528,20 +528,26 @@ def devolutiva_ia(id_aluno):
             2
         )
         prompt = f"""
-        Você é um professor de matemática.
+        Você é um professor de matemática especializado no ensino de frações.
 
-        Analise os dados:
+        Analise o desempenho deste aluno:
 
-        - Total de tentativas: {total}
-        - Acertos: {acertos}
-        - Erros: {erros}
-        - Percentual de acerto: {percentual}%
+        Total de tentativas: {total}
+        Acertos: {acertos}
+        Erros: {erros}
+        Percentual de acerto: {percentual}%
 
-        Gere uma devolutiva pedagógica de no máximo 5 linhas.
+        Principais erros encontrados:
+        {tipos_erro}
 
-        Use linguagem simples, amigável e motivadora.
+        Crie uma devolutiva pedagógica:
 
-        Não utilize títulos, listas ou formatação markdown.
+        - Utilize linguagem amigável e motivadora.
+        - Destaque os pontos positivos do aluno.
+        - Comente possíveis dificuldades observadas.
+        - Sugira o que ele deve revisar ou praticar.
+        - Responda em no máximo 5 linhas.
+        - Não utilize markdown, listas ou títulos.
         """
         print("Tentativas encontradas:", len(tentativas))
 
@@ -606,26 +612,27 @@ def devolutiva_professor(id_aluno):
         ]
 
         prompt = f"""
-        Você é um coordenador pedagógico.
+        Você é um coordenador pedagógico especialista em matemática.
 
-        Analise os dados deste aluno:
+        Analise os dados do aluno:
 
         Total de tentativas: {total}
         Acertos: {acertos}
         Erros: {erros}
         Percentual de acerto: {percentual}%
 
-        Tipos de erro:
+        Tipos de erro encontrados:
         {tipos_erro}
 
-        Gere uma análise para o professor.
+        Gere uma análise para o professor contendo:
 
-        Informe:
-        - desempenho geral
-        - dificuldades observadas
-        - recomendação pedagógica
+        - Desempenho geral do aluno.
+        - Principais dificuldades observadas.
+        - Possíveis causas das dificuldades.
+        - Recomendações pedagógicas para intervenção.
 
-        Máximo 8 linhas.
+        Responda em no máximo 8 linhas.
+        Utilize linguagem profissional e objetiva.
         """
         resposta_ia = client.models.generate_content(
             model="gemini-3.1-flash-lite",
@@ -689,8 +696,23 @@ def devolutiva_turma(id_turma):
                 2
             )
 
+        tipos_erro_turma = []
+        for aluno in lista_alunos:
+
+            tentativas = supabase.table("tentativas") \
+                .select("*") \
+                .eq("id_aluno", aluno["id"]) \
+                .execute()
+
+            for tentativa in tentativas.data:
+
+                if tentativa["tipo_erro"]:
+                    tipos_erro_turma.append(
+                        tentativa["tipo_erro"]
+                    )
+
         prompt = f"""
-        Você é um coordenador pedagógico.
+        Você é um coordenador pedagógico especialista em matemática.
 
         Analise os dados da turma:
 
@@ -698,16 +720,20 @@ def devolutiva_turma(id_turma):
         Total de tentativas: {total_tentativas}
         Acertos: {total_acertos}
         Erros: {total_erros}
-        Percentual médio: {percentual}%
+        Principais erros identificados na turma:
+        {tipos_erro_turma}
+        Percentual médio de acerto: {percentual}%
 
-        Gere uma devolutiva para o professor.
+        Gere uma análise para o professor contendo:
 
-        Informe:
-        - desempenho geral da turma
-        - possíveis dificuldades
-        - recomendações pedagógicas
+        - Visão geral do desempenho da turma.
+        - Possíveis dificuldades coletivas.
+        - Pontos fortes observados.
+        - Sugestões de intervenção pedagógica.
+        - Sugestões para reforço dos conteúdos.
 
-        Máximo 10 linhas.
+        Responda em no máximo 10 linhas.
+        Utilize linguagem clara e profissional.
         """
 
         resposta_ia = client.models.generate_content(
