@@ -628,7 +628,7 @@ def devolutiva_professor(id_aluno):
         Máximo 8 linhas.
         """
         resposta_ia = client.models.generate_content(
-            model="gemini-3,1-flash-lite",
+            model="gemini-3.1-flash-lite",
             contents=prompt
         )
 
@@ -711,7 +711,7 @@ def devolutiva_turma(id_turma):
         """
 
         resposta_ia = client.models.generate_content(
-            model="gemini-3,1-flash-lite",
+            model="gemini-3.1-flash-lite",
             contents=prompt
         )
 
