@@ -648,9 +648,7 @@ def devolutiva_professor(id_aluno):
 
 @app.route("/devolutiva-turma/<int:id_turma>", methods=["GET"])
 def devolutiva_turma(id_turma):
-
     try:
-
         alunos = supabase.table("usuarios") \
             .select("*") \
             .eq("id_turma", id_turma) \
@@ -737,7 +735,6 @@ def erro404(error):
     return jsonify({
         "erro": "URL não encontrada"
     }), 404
-
 
 @app.errorhandler(500)
 def erro500(error):
