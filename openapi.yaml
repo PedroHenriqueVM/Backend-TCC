@@ -1,0 +1,394 @@
+openapi: 3.0.3
+
+info:
+  title: Fracta API
+  version: 1.0.0
+  description: >
+    API educacional para gerenciamento de usuários, exercícios, turmas,
+    tentativas e análises pedagógicas com IA (Gemini).
+
+servers:
+  - url: http://localhost:5000
+    description: Ambiente local
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Autenticação
+  - name: Usuários
+  - name: Exercícios
+  - name: Tentativas
+  - name: Turmas
+  - name: Alunos
+  - name: Inteligência Artificial
+
+paths:
+
+  /:
+    get:
+      tags: [Alunos]
+      summary: Status da API
+      security: []
+      responses:
+        "200":
+          description: API ativa
+          content:
+            application/json:
+              example:
+                api: Fracta
+                version: "1.0"
+                author: Elektron
+
+  # =========================
+  # AUTH
+  # =========================
+  /login:
+    post:
+      tags: [Autenticação]
+      summary: Login de usuário
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: aluno@email.com
+              senha: "123456"
+      responses:
+        "200":
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+              example:
+                mensagem: Login realizado com sucesso
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6...
+
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # =========================
+  # USUÁRIOS
+  # =========================
+  /usuarios:
+    get:
+      tags: [Usuários]
+      summary: Listar usuários
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Usuario"
+
+    post:
+      tags: [Usuários]
+      summary: Criar usuário
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsuarioCreate"
+            example:
+              nome: João Silva
+              email: joao@email.com
+              senha: "123456"
+              tipo_usuario: aluno
+      responses:
+        "201":
+          description: Usuário criado com sucesso
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /usuarios/{id}:
+    delete:
+      tags: [Usuários]
+      summary: Remover usuário
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuário removido
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # =========================
+  # EXERCÍCIOS
+  # =========================
+  /exercicios:
+    get:
+      tags: [Exercícios]
+      summary: Listar exercícios
+      responses:
+        "200":
+          description: Lista de exercícios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exercicio"
+
+    post:
+      tags: [Exercícios]
+      summary: Criar exercício
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExercicioCreate"
+            example:
+              pergunta: "2/4 + 1/4 = ?"
+              resposta_correta: "3/4"
+              categoria: Frações
+              nivel: fácil
+      responses:
+        "201":
+          description: Exercício criado
+
+  # =========================
+  # TENTATIVAS
+  # =========================
+  /tentativas:
+    post:
+      tags: [Tentativas]
+      summary: Registrar tentativa do aluno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TentativaCreate"
+            example:
+              id_aluno: 1
+              id_exercicio: 10
+              resposta_usuario: "3/4"
+      responses:
+        "201":
+          description: Tentativa registrada
+
+  /tentativas/{id_aluno}:
+    get:
+      tags: [Tentativas]
+      summary: Listar tentativas do aluno
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de tentativas
+
+  # =========================
+  # TURMAS
+  # =========================
+  /turmas:
+    get:
+      tags: [Turmas]
+      summary: Listar turmas
+      responses:
+        "200":
+          description: Lista de turmas
+
+    post:
+      tags: [Turmas]
+      summary: Criar turma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TurmaCreate"
+            example:
+              nome: 8º Ano A
+              id_professor: 2
+      responses:
+        "201":
+          description: Turma criada
+
+  /entrar-turma:
+    post:
+      tags: [Turmas]
+      summary: Entrar em uma turma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntrarTurma"
+            example:
+              id_aluno: 1
+              codigo: ABC123
+      responses:
+        "200":
+          description: Entrada realizada
+
+  # =========================
+  # ALUNO
+  # =========================
+  /dashboard/{id_aluno}:
+    get:
+      tags: [Alunos]
+      summary: Dashboard do aluno
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dados do dashboard
+
+  # =========================
+  # IA
+  # =========================
+  /analise-aluno/{id_aluno}:
+    get:
+      tags: [Inteligência Artificial]
+      summary: Análise pedagógica do aluno
+      responses:
+        "200":
+          description: Análise gerada
+
+  /devolutiva-ia/{id_aluno}:
+    get:
+      tags: [Inteligência Artificial]
+      summary: Devolutiva com IA (aluno)
+      responses:
+        "200":
+          description: Texto gerado pela IA
+
+  /devolutiva-professor/{id_aluno}:
+    get:
+      tags: [Inteligência Artificial]
+      summary: Análise para professor
+      responses:
+        "200":
+          description: Relatório pedagógico
+
+  /devolutiva-turma/{id_turma}:
+    get:
+      tags: [Inteligência Artificial]
+      summary: Análise geral da turma
+      responses:
+        "200":
+          description: Relatório da turma
+
+# =========================
+# COMPONENTS
+# =========================
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Requisição inválida
+    Unauthorized:
+      description: Não autorizado
+    NotFound:
+      description: Recurso não encontrado
+
+  schemas:
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        email:
+          type: string
+        tipo_usuario:
+          type: string
+        id_turma:
+          type: integer
+
+    UsuarioCreate:
+      type: object
+      required: [nome, email, senha, tipo_usuario]
+      properties:
+        nome:
+          type: string
+        email:
+          type: string
+        senha:
+          type: string
+        tipo_usuario:
+          type: string
+
+    Exercicio:
+      type: object
+      properties:
+        id:
+          type: integer
+        pergunta:
+          type: string
+        resposta_correta:
+          type: string
+        categoria:
+          type: string
+        nivel:
+          type: string
+
+    ExercicioCreate:
+      type: object
+      required: [pergunta, resposta_correta, categoria, nivel]
+
+    TentativaCreate:
+      type: object
+      required: [id_aluno, id_exercicio, resposta_usuario]
+      properties:
+        id_aluno:
+          type: integer
+        id_exercicio:
+          type: integer
+        resposta_usuario:
+          type: string
+
+    TurmaCreate:
+      type: object
+      required: [nome, id_professor]
+
+    EntrarTurma:
+      type: object
+      required: [id_aluno, codigo]
+
+    LoginRequest:
+      type: object
+      required: [email, senha]
+      properties:
+        email:
+          type: string
+        senha:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        mensagem:
+          type: string
+        token:
+          type: string
