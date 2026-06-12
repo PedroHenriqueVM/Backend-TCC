@@ -17,20 +17,10 @@ load_dotenv()
 app = Flask(__name__)
 
 app.config['SWAGGER'] = {
-    'title': 'Fracta API',
-    'openapi': '3.0.3',
-    'uiversion': 2,
-    'specs': [
-        {
-            'endpoint': 'apispec_1',
-            'route': '/apidocs.json',
-            'rule_filter': lambda rule: True,
-            'model_filter': lambda tag: True,
-        }
-    ]
+    'openapi': '3.0.3'
 }
 
-swagger = Swagger(app, template_file='openapi.yaml')
+swagger = Swagger(app)
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
