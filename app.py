@@ -6,6 +6,7 @@ from auth import auth_bp
 import random
 import string
 from werkzeug.security import generate_password_hash
+from gemini_client import client
 
 from supabase_client import supabase
 
@@ -414,12 +415,317 @@ def dashboard_aluno(id_aluno):
             "erro": str(erro)
         }), 500
 
+# ==========================
+# ANÁLISE DO ALUNO
+# ==========================
 
+@app.route("/analise-aluno/<int:id_aluno>", methods=["GET"])
+def analise_aluno(id_aluno):
+    try:
+        # Busca todas as tentativas do aluno
+        resposta = supabase.table("tentativas") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
 
+        tentativas = resposta.data
 
+        if not tentativas:
+            return jsonify({
+                "erro": "Aluno sem tentativas registradas"
+            }), 404
 
+        total_tentativas = len(tentativas)
 
+        acertos = sum(
+            1 for tentativa in tentativas
+            if tentativa["correta"]
+        )
 
+        erros = total_tentativas - acertos
+
+        percentual_acerto = round(
+            (acertos / total_tentativas) * 100,
+            2
+        )
+
+        # Contadores por categoria
+        categorias = {}
+
+        for tentativa in tentativas:
+            exercicio = supabase.table("exercicios") \
+                .select("categoria") \
+                .eq("id", tentativa["id_exercicio"]) \
+                .execute()
+            if not exercicio.data:
+                continue
+
+            categoria = exercicio.data[0]["categoria"]
+
+            if categoria not in categorias:
+                categorias[categoria] = {
+                    "acertos": 0,
+                    "erros": 0
+                }
+
+            if tentativa["correta"]:
+                categorias[categoria]["acertos"] += 1
+            else:
+                categorias[categoria]["erros"] += 1
+
+        # Feedback simples
+        if percentual_acerto >= 80:
+            feedback = "Excelente desempenho nas atividades de frações."
+        elif percentual_acerto >= 60:
+            feedback = "Bom desempenho, mas ainda existem conteúdos para reforçar."
+        else:
+            feedback = "Recomenda-se revisar os conceitos básicos de frações e praticar mais exercícios."
+
+        return jsonify({
+            "id_aluno": id_aluno,
+            "total_tentativas": total_tentativas,
+            "acertos": acertos,
+            "erros": erros,
+            "percentual_acerto": percentual_acerto,
+            "categorias": categorias,
+            "feedback": feedback
+        }), 200
+
+    except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# DEVOLUTIVA COM IA
+# ==========================
+
+@app.route("/devolutiva-ia/<int:id_aluno>", methods=["GET"])
+def devolutiva_ia(id_aluno):
+    try:
+        resposta = supabase.table("tentativas") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
+        tentativas = resposta.data
+        if not tentativas:
+            return jsonify({
+                "erro": "Aluno sem tentativas"
+            }), 404
+        total = len(tentativas)
+        acertos = sum(
+            1 for t in tentativas
+            if t["correta"]
+        )
+        erros = total - acertos
+        tipos_erro = [
+        t["tipo_erro"]
+        for t in tentativas
+        if t["tipo_erro"]
+        ]
+        percentual = round(
+            (acertos / total) * 100,
+            2
+        )
+        prompt = f"""
+        Você é um professor de matemática.
+
+        Analise os dados:
+
+        - Total de tentativas: {total}
+        - Acertos: {acertos}
+        - Erros: {erros}
+        - Percentual de acerto: {percentual}%
+
+        Gere uma devolutiva pedagógica de no máximo 5 linhas.
+
+        Use linguagem simples, amigável e motivadora.
+
+        Não utilize títulos, listas ou formatação markdown.
+        """
+        print("Tentativas encontradas:", len(tentativas))
+
+        print("Enviando prompt para IA...")
+
+        resposta_ia = client.models.generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt
+        )
+
+        print("Resposta recebida da IA")
+        return jsonify({
+            "id_aluno": id_aluno,
+            "devolutiva": resposta_ia.text
+        })
+
+    except Exception as erro:
+        import traceback
+        traceback.print_exc()
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ================================================
+# DEVOLUTIVA INDIVIDUAL DO ALUNO PARA O PROFESSOR
+# ================================================
+
+@app.route("/devolutiva-professor/<int:id_aluno>", methods=["GET"])
+def devolutiva_professor(id_aluno):
+    try:
+        resposta = supabase.table("tentativas") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
+
+        tentativas = resposta.data
+
+        if not tentativas:
+            return jsonify({
+                "erro": "Aluno sem tentativas"
+            }), 404
+
+        total = len(tentativas)
+
+        acertos = sum(
+            1 for t in tentativas
+            if t["correta"]
+        )
+
+        erros = total - acertos
+
+        percentual = round(
+            (acertos / total) * 100,
+            2
+        )
+
+        tipos_erro = [
+            t["tipo_erro"]
+            for t in tentativas
+            if t["tipo_erro"]
+        ]
+
+        prompt = f"""
+        Você é um coordenador pedagógico.
+
+        Analise os dados deste aluno:
+
+        Total de tentativas: {total}
+        Acertos: {acertos}
+        Erros: {erros}
+        Percentual de acerto: {percentual}%
+
+        Tipos de erro:
+        {tipos_erro}
+
+        Gere uma análise para o professor.
+
+        Informe:
+        - desempenho geral
+        - dificuldades observadas
+        - recomendação pedagógica
+
+        Máximo 8 linhas.
+        """
+        resposta_ia = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        return jsonify({
+            "id_aluno": id_aluno,
+            "analise_professor": resposta_ia.text
+        })
+
+    except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+    
+# ===========================================
+# DEVOLUTIVA GERAL DA TURMA PARA O PROFESSOR
+# ===========================================
+
+@app.route("/devolutiva-turma/<int:id_turma>", methods=["GET"])
+def devolutiva_turma(id_turma):
+
+    try:
+
+        alunos = supabase.table("usuarios") \
+            .select("*") \
+            .eq("id_turma", id_turma) \
+            .execute()
+
+        lista_alunos = alunos.data
+
+        if not lista_alunos:
+            return jsonify({
+                "erro": "Turma não encontrada"
+            }), 404
+
+        total_tentativas = 0
+        total_acertos = 0
+        total_erros = 0
+
+        for aluno in lista_alunos:
+
+            tentativas = supabase.table("tentativas") \
+                .select("*") \
+                .eq("id_aluno", aluno["id"]) \
+                .execute()
+
+            for tentativa in tentativas.data:
+
+                total_tentativas += 1
+
+                if tentativa["correta"]:
+                    total_acertos += 1
+                else:
+                    total_erros += 1
+
+        percentual = 0
+
+        if total_tentativas > 0:
+            percentual = round(
+                (total_acertos / total_tentativas) * 100,
+                2
+            )
+
+        prompt = f"""
+        Você é um coordenador pedagógico.
+
+        Analise os dados da turma:
+
+        Total de alunos: {len(lista_alunos)}
+        Total de tentativas: {total_tentativas}
+        Acertos: {total_acertos}
+        Erros: {total_erros}
+        Percentual médio: {percentual}%
+
+        Gere uma devolutiva para o professor.
+
+        Informe:
+        - desempenho geral da turma
+        - possíveis dificuldades
+        - recomendações pedagógicas
+
+        Máximo 10 linhas.
+        """
+
+        resposta_ia = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        return jsonify({
+            "id_turma": id_turma,
+            "devolutiva_turma": resposta_ia.text
+        })
+
+    except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
 
 # ==========================
 # ERROS
