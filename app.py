@@ -20,7 +20,7 @@ app.config['SWAGGER'] = {
     'openapi': '3.0.3'
 }
 
-swagger = Swagger(app)
+swagger = Swagger(app, template_file='openapi.yaml')
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
