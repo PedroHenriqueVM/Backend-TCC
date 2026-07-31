@@ -45,6 +45,12 @@ tags:
   - name: Turmas
     description: Gerenciamento de turmas
 
+  - name: Trilhas
+    description: Consultas de trilhas e capítulos
+
+  - name: Progresso
+    description: Acompanhamento de progresso do aluno
+
   - name: Dashboard
     description: Indicadores de desempenho
 
@@ -281,6 +287,11 @@ components:
           type: integer
           example: 2
 
+        id_trilha:
+          type: integer
+          nullable: true
+          example: 3
+
     TurmaInput:
 
       type: object
@@ -288,6 +299,7 @@ components:
       required:
         - nome
         - id_professor
+        - id_trilha
 
       properties:
 
@@ -298,6 +310,52 @@ components:
         id_professor:
           type: integer
           example: 2
+
+        id_trilha:
+          type: integer
+          example: 3
+
+    Trilha:
+      type: object
+      additionalProperties: true
+
+    Capitulo:
+      type: object
+      additionalProperties: true
+
+    Progresso:
+      type: object
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 5
+
+        id_capitulo:
+          type: integer
+          example: 12
+
+        concluido:
+          type: boolean
+          example: true
+
+    ProgressoInput:
+      type: object
+
+      required:
+        - id_aluno
+        - id_capitulo
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 5
+
+        id_capitulo:
+          type: integer
+          example: 12
 
     EntrarTurma:
 
@@ -820,6 +878,106 @@ paths:
         "404":
 
           description: Código inválido
+
+# =====================================================
+# TRILHAS
+# =====================================================
+
+  /trilhas:
+    get:
+      tags:
+        - Trilhas
+      summary: Listar trilhas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de trilhas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trilha"
+
+  /trilhas/{id_trilha}/capitulos:
+    get:
+      tags:
+        - Trilhas
+      summary: Listar capítulos de uma trilha
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_trilha
+          in: path
+          required: true
+          description: ID da trilha
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de capítulos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capitulo"
+
+# =====================================================
+# PROGRESSO
+# =====================================================
+
+  /progresso/{id_aluno}:
+    get:
+      tags:
+        - Progresso
+      summary: Consultar progresso do aluno
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          description: ID do aluno
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registro de progresso encontrado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Progresso"
+
+  /progresso:
+    post:
+      tags:
+        - Progresso
+      summary: Marcar capítulo como concluído
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressoInput"
+      responses:
+        "201":
+          description: Capítulo concluído
+          content:
+            application/json:
+              example:
+                mensagem: Capítulo concluído.
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 # =====================================================
 # DASHBOARD
