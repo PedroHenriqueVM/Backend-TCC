@@ -334,7 +334,6 @@ def post_turma():
 # ==========================
 # LISTAR TURMAS
 # ==========================
-
 @app.route("/turmas", methods=["GET"])
 def get_turmas():
     try:
@@ -350,20 +349,15 @@ def get_turmas():
 # ==========================
 # LISTAR TRILHAS
 # ==========================
-
 @app.route("/trilhas", methods=["GET"])
 def get_trilhas():
-
     try:
-
         resposta = supabase.table("trilhas") \
             .select("*") \
             .execute()
-
         return jsonify(resposta.data), 200
 
     except Exception as erro:
-
         return jsonify({
             "erro": str(erro)
         }), 500
@@ -371,22 +365,17 @@ def get_trilhas():
 # ==========================
 # CAPÍTULOS DA TRILHA
 # ==========================
-
 @app.route("/trilhas/<int:id_trilha>/capitulos", methods=["GET"])
 def get_capitulos(id_trilha):
-
     try:
-
         resposta = supabase.table("capitulos") \
             .select("*") \
             .eq("id_trilha", id_trilha) \
             .order("ordem") \
             .execute()
-
         return jsonify(resposta.data), 200
 
     except Exception as erro:
-
         return jsonify({
             "erro": str(erro)
         }), 500
@@ -394,21 +383,16 @@ def get_capitulos(id_trilha):
 # ==========================
 # CAPÍTULO ATUAL DO ALUNO
 # ==========================
-
 @app.route("/progresso/<int:id_aluno>", methods=["GET"])
 def progresso_aluno(id_aluno):
-
     try:
-
         resposta = supabase.table("progresso_aluno") \
             .select("*") \
             .eq("id_aluno", id_aluno) \
             .execute()
-
         return jsonify(resposta.data), 200
 
     except Exception as erro:
-
         return jsonify({
             "erro": str(erro)
         }), 500
@@ -416,26 +400,20 @@ def progresso_aluno(id_aluno):
 # ==========================
 # CONCLUIR CAPÍTULO
 # ==========================
-
 @app.route("/progresso", methods=["POST"])
 def concluir_capitulo():
-
     dados = request.get_json()
-
     try:
-
         supabase.table("progresso_aluno").insert({
             "id_aluno": dados["id_aluno"],
             "id_capitulo": dados["id_capitulo"],
             "concluido": True
         }).execute()
-
         return jsonify({
             "mensagem": "Capítulo concluído."
         }), 201
 
     except Exception as erro:
-
         return jsonify({
             "erro": str(erro)
         }), 500
@@ -443,12 +421,9 @@ def concluir_capitulo():
 # ==========================
 # ENTRAR EM TURMA
 # ==========================
-
 @app.route("/entrar-turma", methods=["POST"])
 def entrar_turma():
-
     dados = request.get_json()
-
     id_aluno = dados.get("id_aluno")
     codigo = dados.get("codigo")
 
@@ -458,7 +433,6 @@ def entrar_turma():
         }), 400
 
     try:
-
         turma = supabase.table("turmas") \
             .select("*") \
             .eq("codigo", codigo) \
@@ -491,7 +465,6 @@ def entrar_turma():
 # ==========================
 # DASHBOARD DO ALUNO
 # ==========================
-
 @app.route("/dashboard/<int:id_aluno>", methods=["GET"])
 def dashboard_aluno(id_aluno):
     try:
@@ -501,16 +474,13 @@ def dashboard_aluno(id_aluno):
             .execute()
 
         tentativas = resposta.data
-
         total_tentativas = len(tentativas)
-
         acertos = sum(
             1 for tentativa in tentativas
             if tentativa["correta"] == True
         )
 
         erros = total_tentativas - acertos
-
         percentual_acerto = 0
 
         if total_tentativas > 0:
@@ -535,7 +505,6 @@ def dashboard_aluno(id_aluno):
 # ==========================
 # ANÁLISE DO ALUNO
 # ==========================
-
 @app.route("/analise-aluno/<int:id_aluno>", methods=["GET"])
 def analise_aluno(id_aluno):
     try:
