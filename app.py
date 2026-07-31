@@ -77,9 +77,25 @@ def post_usuario():
             "erro": "Todos os campos são obrigatórios"
         }), 400
 
+    # Validação do tipo de usuário
+    if tipo_usuario not in ["aluno", "professor"]:
+        return jsonify({
+            "erro": "Tipo de usuário inválido"
+        }), 400
+
     senha_hash = generate_password_hash(senha)
 
     try:
+
+        usuario = supabase.table("usuarios") \
+            .select("*") \
+            .eq("email", email) \
+            .execute()
+
+        if usuario.data:
+            return jsonify({
+                "erro": "Email já cadastrado"
+            }), 400
 
         supabase.table("usuarios").insert({
             "nome": nome,
@@ -92,9 +108,9 @@ def post_usuario():
             "mensagem": "Usuário cadastrado com sucesso"
         }), 201
 
-    except:
+    except Exception as erro:
         return jsonify({
-            "erro": "Falha ao cadastrar usuário"
+            "erro": str(erro)
         }), 500
     
 # ==========================
