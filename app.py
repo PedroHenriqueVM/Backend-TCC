@@ -292,10 +292,16 @@ def post_turma():
 
     nome = dados.get("nome")
     id_professor = dados.get("id_professor")
+    id_trilha = dados.get("id_trilha")
 
     if not nome or not id_professor:
         return jsonify({
             "erro": "Nome da turma e id_professor são obrigatórios"
+        }), 400
+
+    if not nome or not id_professor or not id_trilha:
+        return jsonify({
+            "erro": "Nome, professor e trilha são obrigatórios"
         }), 400
 
     try:
@@ -311,7 +317,8 @@ def post_turma():
         supabase.table("turmas").insert({
             "nome": nome,
             "codigo": codigo,
-            "id_professor": id_professor
+            "id_professor": id_professor,
+            "id_trilha": id_trilha
         }).execute()
 
         return jsonify({
@@ -338,6 +345,99 @@ def get_turmas():
     except:
         return jsonify({
             "erro": "Falha ao buscar turmas"
+        }), 500
+
+# ==========================
+# LISTAR TRILHAS
+# ==========================
+
+@app.route("/trilhas", methods=["GET"])
+def get_trilhas():
+
+    try:
+
+        resposta = supabase.table("trilhas") \
+            .select("*") \
+            .execute()
+
+        return jsonify(resposta.data), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# CAPÍTULOS DA TRILHA
+# ==========================
+
+@app.route("/trilhas/<int:id_trilha>/capitulos", methods=["GET"])
+def get_capitulos(id_trilha):
+
+    try:
+
+        resposta = supabase.table("capitulos") \
+            .select("*") \
+            .eq("id_trilha", id_trilha) \
+            .order("ordem") \
+            .execute()
+
+        return jsonify(resposta.data), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# CAPÍTULO ATUAL DO ALUNO
+# ==========================
+
+@app.route("/progresso/<int:id_aluno>", methods=["GET"])
+def progresso_aluno(id_aluno):
+
+    try:
+
+        resposta = supabase.table("progresso_aluno") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
+
+        return jsonify(resposta.data), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# CONCLUIR CAPÍTULO
+# ==========================
+
+@app.route("/progresso", methods=["POST"])
+def concluir_capitulo():
+
+    dados = request.get_json()
+
+    try:
+
+        supabase.table("progresso_aluno").insert({
+            "id_aluno": dados["id_aluno"],
+            "id_capitulo": dados["id_capitulo"],
+            "concluido": True
+        }).execute()
+
+        return jsonify({
+            "mensagem": "Capítulo concluído."
+        }), 201
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
         }), 500
 
 # ==========================
