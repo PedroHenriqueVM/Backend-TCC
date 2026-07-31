@@ -3,36 +3,343 @@ openapi: 3.0.3
 info:
   title: Fracta API
   version: 1.0.0
-  description: >
-    API educacional para gerenciamento de usuários, exercícios, turmas,
-    tentativas e análises pedagógicas com IA (Gemini).
+  description: |
+    API REST da plataforma Fracta.
+
+    Funcionalidades:
+
+    - Cadastro de usuários
+    - Login com JWT
+    - Gerenciamento de turmas
+    - Cadastro de exercícios
+    - Registro de tentativas
+    - Dashboard do aluno
+    - Análise pedagógica
+    - Devolutivas utilizando Inteligência Artificial (Gemini)
+
+    Algumas rotas exigem autenticação via Bearer Token (JWT).
+
+  contact:
+    name: Equipe Elektron
 
 servers:
   - url: http://localhost:5000
-    description: Ambiente local
-
-security:
-  - bearerAuth: []
+    description: Servidor Local
 
 tags:
-  - name: Autenticação
-  - name: Usuários
-  - name: Exercícios
-  - name: Tentativas
-  - name: Turmas
-  - name: Alunos
-  - name: Inteligência Artificial
+  - name: Sistema
+    description: Informações da API
 
+  - name: Autenticação
+    description: Login dos usuários
+
+  - name: Usuários
+    description: Cadastro e gerenciamento de usuários
+
+  - name: Exercícios
+    description: Operações com exercícios
+
+  - name: Tentativas
+    description: Registro das respostas dos alunos
+
+  - name: Turmas
+    description: Gerenciamento de turmas
+
+  - name: Dashboard
+    description: Indicadores de desempenho
+
+  - name: Inteligência Artificial
+    description: Análises e devolutivas pedagógicas
+
+components:
+
+  securitySchemes:
+
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+# =====================================================
+# LOGIN
+# =====================================================
+
+    LoginRequest:
+      type: object
+
+      required:
+        - email
+        - senha
+
+      properties:
+
+        email:
+          type: string
+          example: professor@email.com
+
+        senha:
+          type: string
+          example: "123456"
+
+    LoginResponse:
+      type: object
+
+      properties:
+
+        mensagem:
+          type: string
+          example: Login realizado com sucesso.
+
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6...
+
+# =====================================================
+# USUÁRIO
+# =====================================================
+
+    Usuario:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 1
+
+        nome:
+          type: string
+          example: João Silva
+
+        email:
+          type: string
+          example: joao@email.com
+
+        tipo_usuario:
+          type: string
+          example: aluno
+
+        id_turma:
+          type: integer
+          nullable: true
+          example: 2
+
+    UsuarioInput:
+
+      type: object
+
+      required:
+        - nome
+        - email
+        - senha
+        - tipo_usuario
+
+      properties:
+
+        nome:
+          type: string
+          example: João Silva
+
+        email:
+          type: string
+          example: joao@email.com
+
+        senha:
+          type: string
+          example: "123456"
+
+        tipo_usuario:
+          type: string
+          example: aluno
+
+# =====================================================
+# EXERCÍCIO
+# =====================================================
+
+    Exercicio:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 5
+
+        pergunta:
+          type: string
+          example: Quanto é 2/4 + 1/4?
+
+        resposta_correta:
+          type: string
+          example: 3/4
+
+        categoria:
+          type: string
+          example: Adição de Frações
+
+        nivel:
+          type: string
+          example: Fácil
+
+    ExercicioInput:
+
+      type: object
+
+      required:
+        - pergunta
+        - resposta_correta
+        - categoria
+        - nivel
+
+      properties:
+
+        pergunta:
+          type: string
+          example: Quanto é 1/2 + 1/4?
+
+        resposta_correta:
+          type: string
+          example: 3/4
+
+        categoria:
+          type: string
+          example: Frações
+
+        nivel:
+          type: string
+          example: Fácil
+
+# =====================================================
+# TENTATIVA
+# =====================================================
+
+    TentativaInput:
+
+      type: object
+
+      required:
+        - id_aluno
+        - id_exercicio
+        - resposta_usuario
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 1
+
+        id_exercicio:
+          type: integer
+          example: 3
+
+        resposta_usuario:
+          type: string
+          example: 3/4
+
+    Tentativa:
+
+      type: object
+
+      properties:
+
+        correta:
+          type: boolean
+          example: true
+
+        tipo_erro:
+          type: string
+          nullable: true
+          example: null
+
+# =====================================================
+# TURMA
+# =====================================================
+
+    Turma:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 1
+
+        nome:
+          type: string
+          example: 8º Ano A
+
+        codigo:
+          type: string
+          example: AB12CD
+
+        id_professor:
+          type: integer
+          example: 2
+
+    TurmaInput:
+
+      type: object
+
+      required:
+        - nome
+        - id_professor
+
+      properties:
+
+        nome:
+          type: string
+          example: 8º Ano A
+
+        id_professor:
+          type: integer
+          example: 2
+
+    EntrarTurma:
+
+      type: object
+
+      required:
+        - id_aluno
+        - codigo
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 5
+
+        codigo:
+          type: string
+          example: AB12CD
+
+# =====================================================
+# ERRO
+# =====================================================
+
+    Error:
+
+      type: object
+
+      properties:
+
+        erro:
+          type: string
+          example: Recurso não encontrado
 paths:
 
   /:
     get:
-      tags: [Alunos]
-      summary: Status da API
-      security: []
+      tags:
+        - Sistema
+      summary: Informações da API
       responses:
         "200":
-          description: API ativa
+          description: API em funcionamento
           content:
             application/json:
               example:
@@ -40,355 +347,638 @@ paths:
                 version: "1.0"
                 author: Elektron
 
-  # =========================
-  # AUTH
-  # =========================
+# =====================================================
+# AUTENTICAÇÃO
+# =====================================================
+
   /login:
     post:
-      tags: [Autenticação]
-      summary: Login de usuário
-      security: []
+      tags:
+        - Autenticação
+
+      summary: Login do usuário
+
+      description: |
+        Realiza a autenticação do usuário e retorna um token JWT
+        para acesso às rotas protegidas.
+
       requestBody:
         required: true
+
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/LoginRequest"
-            example:
-              email: aluno@email.com
-              senha: "123456"
+
       responses:
+
         "200":
           description: Login realizado com sucesso
+
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
-              example:
-                mensagem: Login realizado com sucesso
-                token: eyJhbGciOiJIUzI1NiIsInR5cCI6...
 
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+        "400":
+          description: Dados inválidos
 
-  # =========================
-  # USUÁRIOS
-  # =========================
-  /usuarios:
-    get:
-      tags: [Usuários]
-      summary: Listar usuários
-      responses:
-        "200":
-          description: Lista de usuários
           content:
             application/json:
               schema:
+                $ref: "#/components/schemas/Error"
+
+        "401":
+          description: Usuário ou senha inválidos
+
+# =====================================================
+# USUÁRIOS
+# =====================================================
+
+  /usuarios:
+
+    get:
+
+      tags:
+        - Usuários
+
+      summary: Listar usuários
+
+      security:
+        - BearerAuth: []
+
+      responses:
+
+        "200":
+
+          description: Lista de usuários
+
+          content:
+            application/json:
+
+              schema:
                 type: array
+
                 items:
                   $ref: "#/components/schemas/Usuario"
 
     post:
-      tags: [Usuários]
-      summary: Criar usuário
-      security: []
+
+      tags:
+        - Usuários
+
+      summary: Cadastrar usuário
+
       requestBody:
+
         required: true
+
         content:
+
           application/json:
+
             schema:
-              $ref: "#/components/schemas/UsuarioCreate"
-            example:
-              nome: João Silva
-              email: joao@email.com
-              senha: "123456"
-              tipo_usuario: aluno
+              $ref: "#/components/schemas/UsuarioInput"
+
       responses:
+
         "201":
-          description: Usuário criado com sucesso
-        "400":
-          $ref: "#/components/responses/BadRequest"
 
-  /usuarios/{id}:
-    delete:
-      tags: [Usuários]
-      summary: Remover usuário
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Usuário removido
-        "404":
-          $ref: "#/components/responses/NotFound"
+          description: Usuário cadastrado
 
-  # =========================
-  # EXERCÍCIOS
-  # =========================
-  /exercicios:
-    get:
-      tags: [Exercícios]
-      summary: Listar exercícios
-      responses:
-        "200":
-          description: Lista de exercícios
           content:
             application/json:
+
+              example:
+                mensagem: Usuário cadastrado com sucesso
+
+        "400":
+
+          description: Dados inválidos
+
+          content:
+
+            application/json:
+
               schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# DELETAR USUÁRIO
+# =====================================================
+
+  /usuarios/{id}:
+
+    delete:
+
+      tags:
+        - Usuários
+
+      summary: Excluir usuário
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+
+        - name: id
+
+          in: path
+
+          required: true
+
+          description: ID do usuário
+
+          schema:
+
+            type: integer
+
+      responses:
+
+        "200":
+
+          description: Usuário removido
+
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Usuário removido com sucesso
+
+        "404":
+
+          description: Usuário não encontrado
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# EXERCÍCIOS
+# =====================================================
+
+  /exercicios:
+
+    get:
+
+      tags:
+        - Exercícios
+
+      summary: Listar exercícios
+
+      responses:
+
+        "200":
+
+          description: Lista de exercícios
+
+          content:
+
+            application/json:
+
+              schema:
+
                 type: array
+
                 items:
                   $ref: "#/components/schemas/Exercicio"
 
     post:
-      tags: [Exercícios]
-      summary: Criar exercício
+
+      tags:
+        - Exercícios
+
+      summary: Cadastrar exercício
+
+      security:
+        - BearerAuth: []
+
       requestBody:
+
         required: true
+
         content:
+
           application/json:
+
             schema:
-              $ref: "#/components/schemas/ExercicioCreate"
-            example:
-              pergunta: "2/4 + 1/4 = ?"
-              resposta_correta: "3/4"
-              categoria: Frações
-              nivel: fácil
+              $ref: "#/components/schemas/ExercicioInput"
+
       responses:
+
         "201":
+
           description: Exercício criado
 
-  # =========================
-  # TENTATIVAS
-  # =========================
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Exercício cadastrado com sucesso
+
+        "400":
+
+          description: Dados inválidos
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+# =====================================================
+# TENTATIVAS
+# =====================================================
+
   /tentativas:
+
     post:
-      tags: [Tentativas]
-      summary: Registrar tentativa do aluno
+
+      tags:
+        - Tentativas
+
+      summary: Registrar tentativa de um aluno
+
+      security:
+        - BearerAuth: []
+
       requestBody:
+
         required: true
+
         content:
+
           application/json:
+
             schema:
-              $ref: "#/components/schemas/TentativaCreate"
-            example:
-              id_aluno: 1
-              id_exercicio: 10
-              resposta_usuario: "3/4"
+              $ref: "#/components/schemas/TentativaInput"
+
       responses:
+
         "201":
+
           description: Tentativa registrada
 
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Tentativa"
+
+        "400":
+
+          description: Dados inválidos
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# LISTAR TENTATIVAS
+# =====================================================
+
   /tentativas/{id_aluno}:
+
     get:
-      tags: [Tentativas]
+
+      tags:
+        - Tentativas
+
       summary: Listar tentativas do aluno
+
+      security:
+        - BearerAuth: []
+
       parameters:
+
         - name: id_aluno
+
           in: path
+
           required: true
+
+          description: ID do aluno
+
           schema:
+
             type: integer
+
       responses:
+
         "200":
+
           description: Lista de tentativas
 
-  # =========================
-  # TURMAS
-  # =========================
+          content:
+
+            application/json:
+
+              schema:
+
+                type: array
+
+                items:
+                  $ref: "#/components/schemas/Tentativa"
+
+        "404":
+
+          description: Aluno não encontrado
+
+# =====================================================
+# TURMAS
+# =====================================================
+
   /turmas:
+
     get:
-      tags: [Turmas]
+
+      tags:
+        - Turmas
+
       summary: Listar turmas
+
+      security:
+        - BearerAuth: []
+
       responses:
+
         "200":
+
           description: Lista de turmas
 
+          content:
+
+            application/json:
+
+              schema:
+
+                type: array
+
+                items:
+                  $ref: "#/components/schemas/Turma"
+
     post:
-      tags: [Turmas]
+
+      tags:
+        - Turmas
+
       summary: Criar turma
+
+      security:
+        - BearerAuth: []
+
       requestBody:
+
         required: true
+
         content:
+
           application/json:
+
             schema:
-              $ref: "#/components/schemas/TurmaCreate"
-            example:
-              nome: 8º Ano A
-              id_professor: 2
+              $ref: "#/components/schemas/TurmaInput"
+
       responses:
+
         "201":
+
           description: Turma criada
 
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Turma criada com sucesso
+                codigo: AB12CD
+
+        "400":
+
+          description: Dados inválidos
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# ENTRAR NA TURMA
+# =====================================================
+
   /entrar-turma:
+
     post:
-      tags: [Turmas]
-      summary: Entrar em uma turma
+
+      tags:
+        - Turmas
+
+      summary: Entrar em uma turma utilizando o código
+
+      security:
+        - BearerAuth: []
+
       requestBody:
+
         required: true
+
         content:
+
           application/json:
+
             schema:
               $ref: "#/components/schemas/EntrarTurma"
-            example:
-              id_aluno: 1
-              codigo: ABC123
-      responses:
-        "200":
-          description: Entrada realizada
 
-  # =========================
-  # ALUNO
-  # =========================
+      responses:
+
+        "200":
+
+          description: Aluno entrou na turma
+
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Aluno entrou na turma
+                turma: 8º Ano A
+
+        "404":
+
+          description: Código inválido
+
+# =====================================================
+# DASHBOARD
+# =====================================================
+
   /dashboard/{id_aluno}:
+
     get:
-      tags: [Alunos]
+
+      tags:
+        - Dashboard
+
       summary: Dashboard do aluno
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+
+        - name: id_aluno
+
+          in: path
+
+          required: true
+
+          description: ID do aluno
+
+          schema:
+
+            type: integer
+
+      responses:
+
+        "200":
+
+          description: Estatísticas do aluno
+
+          content:
+
+            application/json:
+
+              example:
+
+                id_aluno: 2
+                total_tentativas: 20
+                acertos: 15
+                erros: 5
+                percentual_acerto: 75.0
+
+        "404":
+
+          description: Aluno não encontrado
+  /analise-aluno/{id_aluno}:
+    get:
+      tags:
+        - Inteligência Artificial
+      summary: Gerar análise de desempenho do aluno
+      description: Analisa todas as tentativas do aluno e retorna estatísticas por categoria juntamente com um feedback pedagógico.
       parameters:
         - name: id_aluno
           in: path
           required: true
           schema:
             type: integer
-      responses:
-        "200":
-          description: Dados do dashboard
 
-  # =========================
-  # IA
-  # =========================
-  /analise-aluno/{id_aluno}:
-    get:
-      tags: [Inteligência Artificial]
-      summary: Análise pedagógica do aluno
       responses:
         "200":
-          description: Análise gerada
+          description: Análise gerada com sucesso
+          content:
+            application/json:
+              example:
+                id_aluno: 1
+                total_tentativas: 20
+                acertos: 16
+                erros: 4
+                percentual_acerto: 80
+                categorias:
+                  Frações:
+                    acertos: 10
+                    erros: 2
+                  Operações:
+                    acertos: 6
+                    erros: 2
+                feedback: Excelente desempenho nas atividades de frações.
+
+        "404":
+          description: Aluno sem tentativas
 
   /devolutiva-ia/{id_aluno}:
     get:
-      tags: [Inteligência Artificial]
-      summary: Devolutiva com IA (aluno)
+      tags:
+        - Inteligência Artificial
+      summary: Gerar devolutiva personalizada para o aluno
+      description: Utiliza IA (Gemini) para gerar um feedback motivador baseado no desempenho do aluno.
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          schema:
+            type: integer
+
       responses:
         "200":
-          description: Texto gerado pela IA
+          description: Devolutiva gerada
+          content:
+            application/json:
+              example:
+                id_aluno: 1
+                devolutiva: Você apresentou um ótimo desempenho nas atividades de frações. Continue praticando operações envolvendo simplificação para melhorar ainda mais seus resultados.
+
+        "404":
+          description: Aluno sem tentativas
 
   /devolutiva-professor/{id_aluno}:
     get:
-      tags: [Inteligência Artificial]
-      summary: Análise para professor
+      tags:
+        - Inteligência Artificial
+      summary: Gerar relatório pedagógico individual
+      description: Utiliza IA para produzir uma análise destinada ao professor com recomendações pedagógicas.
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          schema:
+            type: integer
+
       responses:
         "200":
-          description: Relatório pedagógico
+          description: Relatório gerado
+          content:
+            application/json:
+              example:
+                id_aluno: 1
+                analise_professor: O aluno apresenta bom desempenho geral, porém demonstra dificuldades em operações de adição de frações com denominadores diferentes. Recomenda-se reforço utilizando exercícios contextualizados.
+
+        "404":
+          description: Aluno sem tentativas
 
   /devolutiva-turma/{id_turma}:
     get:
-      tags: [Inteligência Artificial]
-      summary: Análise geral da turma
+      tags:
+        - Inteligência Artificial
+      summary: Gerar análise geral da turma
+      description: Utiliza IA para gerar uma devolutiva geral da turma com base no desempenho coletivo.
+      parameters:
+        - name: id_turma
+          in: path
+          required: true
+          schema:
+            type: integer
+
       responses:
         "200":
           description: Relatório da turma
+          content:
+            application/json:
+              example:
+                id_turma: 3
+                devolutiva_turma: A turma apresenta bom desempenho geral em operações básicas com frações, porém há dificuldades recorrentes em simplificação e comparação de frações. Recomenda-se revisão desses conteúdos antes de avançar.
 
-# =========================
-# COMPONENTS
-# =========================
-components:
-
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-  responses:
-    BadRequest:
-      description: Requisição inválida
-    Unauthorized:
-      description: Não autorizado
-    NotFound:
-      description: Recurso não encontrado
-
-  schemas:
-
-    Usuario:
-      type: object
-      properties:
-        id:
-          type: integer
-        nome:
-          type: string
-        email:
-          type: string
-        tipo_usuario:
-          type: string
-        id_turma:
-          type: integer
-
-    UsuarioCreate:
-      type: object
-      required: [nome, email, senha, tipo_usuario]
-      properties:
-        nome:
-          type: string
-        email:
-          type: string
-        senha:
-          type: string
-        tipo_usuario:
-          type: string
-
-    Exercicio:
-      type: object
-      properties:
-        id:
-          type: integer
-        pergunta:
-          type: string
-        resposta_correta:
-          type: string
-        categoria:
-          type: string
-        nivel:
-          type: string
-
-    ExercicioCreate:
-      type: object
-      required: [pergunta, resposta_correta, categoria, nivel]
-
-    TentativaCreate:
-      type: object
-      required: [id_aluno, id_exercicio, resposta_usuario]
-      properties:
-        id_aluno:
-          type: integer
-        id_exercicio:
-          type: integer
-        resposta_usuario:
-          type: string
-
-    TurmaCreate:
-      type: object
-      required: [nome, id_professor]
-
-    EntrarTurma:
-      type: object
-      required: [id_aluno, codigo]
-
-    LoginRequest:
-      type: object
-      required: [email, senha]
-      properties:
-        email:
-          type: string
-        senha:
-          type: string
-
-    LoginResponse:
-      type: object
-      properties:
-        mensagem:
-          type: string
-        token:
-          type: string
+        "404":
+          description: Turma não encontrada

@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
+from flask_cors import CORS
 from flasgger import Swagger
 from auth import auth_bp
 import random
