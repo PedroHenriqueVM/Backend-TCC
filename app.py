@@ -347,14 +347,17 @@ def get_turmas():
         }), 500
 
 # ==========================
-# LISTAR TRILHAS
+# LISTAR TODAS AS TRILHAS
 # ==========================
+
 @app.route("/trilhas", methods=["GET"])
 def get_trilhas():
     try:
         resposta = supabase.table("trilhas") \
             .select("*") \
+            .order("id") \
             .execute()
+
         return jsonify(resposta.data), 200
 
     except Exception as erro:
