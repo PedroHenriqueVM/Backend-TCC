@@ -363,6 +363,46 @@ def get_trilhas():
         }), 500
 
 # ==========================
+# LISTAR TRILHA POR ID
+# ==========================
+
+@app.route("/trilhas/<int:id_trilha>", methods=["GET"])
+def get_trilha(id_trilha):
+
+    try:
+
+        # Busca a trilha
+        trilha = supabase.table("trilhas") \
+            .select("*") \
+            .eq("id", id_trilha) \
+            .execute()
+
+        if not trilha.data:
+            return jsonify({
+                "erro": "Trilha não encontrada"
+            }), 404
+
+        trilha = trilha.data[0]
+
+        # Busca os capítulos da trilha
+        capitulos = supabase.table("capitulos") \
+            .select("*") \
+            .eq("id_trilha", id_trilha) \
+            .order("ordem") \
+            .execute()
+
+        return jsonify({
+            "trilha": trilha,
+            "capitulos": capitulos.data
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
 # CAPÍTULOS DA TRILHA
 # ==========================
 @app.route("/trilhas/<int:id_trilha>/capitulos", methods=["GET"])
