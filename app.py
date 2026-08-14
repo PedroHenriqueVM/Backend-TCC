@@ -147,6 +147,153 @@ def delete_usuario(id):
         }), 500
 
 # ==========================
+# REDEFINIR SENHA DO ALUNO
+# ==========================
+
+@app.route("/redefinir-senha", methods=["POST"])
+def redefinir_senha():
+
+    dados = request.get_json()
+
+    if not dados:
+        return jsonify({
+            "erro": "Envie os dados"
+        }), 400
+
+    id_aluno = dados.get("id_aluno")
+
+    if not id_aluno:
+        return jsonify({
+            "erro": "id_aluno é obrigatório"
+        }), 400
+
+    try:
+
+        # Verifica se o aluno existe
+        aluno = supabase.table("usuarios") \
+            .select("*") \
+            .eq("id", id_aluno) \
+            .eq("tipo_usuario", "aluno") \
+            .execute()
+
+        if not aluno.data:
+            return jsonify({
+                "erro": "Aluno não encontrado"
+            }), 404
+
+        # Gera senha temporária
+        senha_temporaria = (
+            "Fracta" +
+            ''.join(
+                random.choices(
+                    string.ascii_letters + string.digits,
+                    k=5
+                )
+            )
+        )
+
+        senha_hash = generate_password_hash(senha_temporaria)
+
+        # Atualiza a senha e obriga a alteração
+        supabase.table("usuarios") \
+            .update({
+                "senha": senha_hash,
+                "precisa_alterar_senha": True
+            }) \
+            .eq("id", id_aluno) \
+            .execute()
+
+        return jsonify({
+            "mensagem": "Senha redefinida com sucesso",
+            "senha_temporaria": senha_temporaria
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# ALTERAR SENHA
+# ==========================
+
+@app.route("/alterar-senha", methods=["POST"])
+def alterar_senha():
+
+    dados = request.get_json()
+
+    if not dados:
+        return jsonify({
+            "erro": "Envie os dados"
+        }), 400
+
+    id_aluno = dados.get("id_aluno")
+    senha_atual = dados.get("senha_atual")
+    nova_senha = dados.get("nova_senha")
+
+    if not id_aluno or not senha_atual or not nova_senha:
+        return jsonify({
+            "erro": "id_aluno, senha_atual e nova_senha são obrigatórios"
+        }), 400
+
+    if len(nova_senha) < 6:
+        return jsonify({
+            "erro": "A nova senha deve ter pelo menos 6 caracteres"
+        }), 400
+
+    try:
+
+        # Busca o aluno
+        resposta = supabase.table("usuarios") \
+            .select("*") \
+            .eq("id", id_aluno) \
+            .eq("tipo_usuario", "aluno") \
+            .execute()
+
+        if not resposta.data:
+            return jsonify({
+                "erro": "Aluno não encontrado"
+            }), 404
+
+        aluno = resposta.data[0]
+
+        # Verifica a senha atual
+        from werkzeug.security import check_password_hash
+
+        senha_correta = check_password_hash(
+            aluno["senha"],
+            senha_atual
+        )
+
+        if not senha_correta:
+            return jsonify({
+                "erro": "Senha atual incorreta"
+            }), 401
+
+        # Gera o hash da nova senha
+        nova_senha_hash = generate_password_hash(nova_senha)
+
+        # Atualiza a senha
+        supabase.table("usuarios") \
+            .update({
+                "senha": nova_senha_hash,
+                "precisa_alterar_senha": False
+            }) \
+            .eq("id", id_aluno) \
+            .execute()
+
+        return jsonify({
+            "mensagem": "Senha alterada com sucesso"
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
 # CADASTRAR EXERCÍCIO
 # ==========================
 
@@ -176,6 +323,127 @@ def post_exercicio():
     except:
         return jsonify({
             "erro": "Falha ao cadastrar exercício"
+        }), 500
+
+# ==========================
+# GERAR QUESTÕES POR CAPÍTULO
+# ==========================
+
+@app.route("/gerar-questoes/<int:id_capitulo>", methods=["POST"])
+def gerar_questoes(id_capitulo):
+
+    try:
+
+        # Busca o capítulo
+        resposta = supabase.table("capitulos") \
+            .select("*") \
+            .eq("id", id_capitulo) \
+            .execute()
+
+        if not resposta.data:
+            return jsonify({
+                "erro": "Capítulo não encontrado"
+            }), 404
+
+        capitulo = resposta.data[0]
+
+        titulo = capitulo["titulo"]
+        conteudo = capitulo["conteudo"]
+
+        if not conteudo:
+            return jsonify({
+                "erro": "Este capítulo não possui conteúdo cadastrado"
+            }), 400
+
+        # Prompt enviado para a IA
+        prompt = f"""
+Você é um professor de matemática especializado no ensino
+de alunos do 6º ano do Ensino Fundamental.
+
+Crie 10 questões de matemática baseadas EXCLUSIVAMENTE
+nos conteúdos deste capítulo.
+
+TRILHA:
+Aventuras de Silas — O Mistério das Frações
+
+CAPÍTULO:
+{titulo}
+
+CONTEÚDOS:
+{conteudo}
+
+As questões devem:
+
+- Ser adequadas para alunos do 6º ano.
+- Estar relacionadas diretamente aos conteúdos informados.
+- Possuir diferentes níveis de dificuldade.
+- Não utilizar conteúdos que não estejam relacionados ao capítulo.
+- Ter uma única resposta correta.
+- Utilizar linguagem clara e adequada para estudantes.
+
+Retorne SOMENTE um JSON válido no seguinte formato:
+
+[
+    {{
+        "pergunta": "pergunta da questão",
+        "resposta_correta": "resposta correta",
+        "categoria": "conteúdo relacionado",
+        "nivel": "fácil"
+    }}
+]
+
+Os níveis permitidos são:
+fácil, médio ou difícil.
+"""
+        # Gera as questões
+        resposta_ia = client.models.generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt
+        )
+
+        texto = resposta_ia.text
+
+        # Remove possíveis blocos de markdown
+        texto = texto.replace("```json", "")
+        texto = texto.replace("```", "")
+        texto = texto.strip()
+
+        import json
+
+        questoes = json.loads(texto)
+
+        # Salva as questões no banco
+        questoes_salvas = []
+
+        for questao in questoes:
+            resultado = supabase.table("exercicios").insert({
+                "pergunta": questao["pergunta"],
+                "resposta_correta": questao["resposta_correta"],
+                "categoria": questao["categoria"],
+                "nivel": questao["nivel"],
+                "id_capitulo": id_capitulo
+            }).execute()
+
+            if resultado.data:
+                questoes_salvas.append(resultado.data[0])
+
+        return jsonify({
+            "mensagem": "Questões geradas com sucesso",
+            "id_capitulo": id_capitulo,
+            "capitulo": titulo,
+            "quantidade": len(questoes_salvas),
+            "questoes": questoes_salvas
+        }), 201
+
+    except json.JSONDecodeError:
+        return jsonify({
+            "erro": "A IA retornou um formato inválido"
+        }), 500
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
         }), 500
     
 # ==========================
@@ -277,7 +545,7 @@ def get_tentativas_aluno(id_aluno):
         }), 500
 
 # ==========================
-# CRIAR TURMAS
+# CRIAR TURMA
 # ==========================
 
 @app.route("/turmas", methods=["POST"])
@@ -294,17 +562,34 @@ def post_turma():
     id_professor = dados.get("id_professor")
     id_trilha = dados.get("id_trilha")
 
-    if not nome or not id_professor:
-        return jsonify({
-            "erro": "Nome da turma e id_professor são obrigatórios"
-        }), 400
-
     if not nome or not id_professor or not id_trilha:
         return jsonify({
-            "erro": "Nome, professor e trilha são obrigatórios"
+            "erro": "Nome da turma, id_professor e id_trilha são obrigatórios"
         }), 400
 
     try:
+        # Verifica se o professor existe
+        professor = supabase.table("usuarios") \
+            .select("*") \
+            .eq("id", id_professor) \
+            .eq("tipo_usuario", "professor") \
+            .execute()
+
+        if not professor.data:
+            return jsonify({
+                "erro": "Professor não encontrado"
+            }), 404
+
+        # Verifica se a trilha existe
+        trilha = supabase.table("trilhas") \
+            .select("*") \
+            .eq("id", id_trilha) \
+            .execute()
+
+        if not trilha.data:
+            return jsonify({
+                "erro": "Trilha não encontrada"
+            }), 404
 
         # Gera código aleatório de 6 caracteres
         codigo = ''.join(
@@ -314,19 +599,85 @@ def post_turma():
             )
         )
 
+        # Cria a turma
         supabase.table("turmas").insert({
             "nome": nome,
             "codigo": codigo,
             "id_professor": id_professor,
             "id_trilha": id_trilha
         }).execute()
-
         return jsonify({
             "mensagem": "Turma criada com sucesso",
-            "codigo": codigo
+            "codigo": codigo,
+            "id_trilha": id_trilha,
+            "trilha": trilha.data[0]["nome"]
         }), 201
 
     except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# BUSCAR TRILHA DA TURMA
+# ==========================
+
+@app.route("/turmas/<int:id_turma>/trilha", methods=["GET"])
+def get_trilha_turma(id_turma):
+
+    try:
+
+        # Busca a turma
+        turma = supabase.table("turmas") \
+            .select("*") \
+            .eq("id", id_turma) \
+            .execute()
+
+        if not turma.data:
+            return jsonify({
+                "erro": "Turma não encontrada"
+            }), 404
+
+        turma = turma.data[0]
+
+        # Verifica se a turma possui uma trilha
+        if not turma.get("id_trilha"):
+            return jsonify({
+                "erro": "Esta turma não possui uma trilha"
+            }), 404
+
+        # Busca a trilha
+        trilha = supabase.table("trilhas") \
+            .select("*") \
+            .eq("id", turma["id_trilha"]) \
+            .execute()
+
+        if not trilha.data:
+            return jsonify({
+                "erro": "Trilha não encontrada"
+            }), 404
+
+        trilha = trilha.data[0]
+
+        # Busca os capítulos
+        capitulos = supabase.table("capitulos") \
+            .select("*") \
+            .eq("id_trilha", trilha["id"]) \
+            .order("ordem") \
+            .execute()
+
+        return jsonify({
+            "turma": {
+                "id": turma["id"],
+                "nome": turma["nome"],
+                "codigo": turma["codigo"]
+            },
+            "trilha": trilha,
+            "capitulos": capitulos.data
+        }), 200
+
+    except Exception as erro:
+
         return jsonify({
             "erro": str(erro)
         }), 500
