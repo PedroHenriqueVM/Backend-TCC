@@ -375,6 +375,61 @@ components:
           type: string
           example: AB12CD
 
+    RedefinirSenhaInput:
+      type: object
+      required:
+        - id_aluno
+      properties:
+        id_aluno:
+          type: integer
+          example: 5
+
+    AlterarSenhaInput:
+      type: object
+      required:
+        - id_aluno
+        - senha_atual
+        - nova_senha
+      properties:
+        id_aluno:
+          type: integer
+          example: 5
+        senha_atual:
+          type: string
+          format: password
+          example: Fracta123
+        nova_senha:
+          type: string
+          format: password
+          minLength: 6
+          example: NovaSenha123
+
+    GerarQuestoesInput:
+      type: object
+      description: Esta rota não exige corpo; o capítulo é informado na URL.
+
+    TrilhaTurmaResponse:
+      type: object
+      properties:
+        turma:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            nome:
+              type: string
+              example: 8º Ano A
+            codigo:
+              type: string
+              example: AB12CD
+        trilha:
+          $ref: "#/components/schemas/Trilha"
+        capitulos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Capitulo"
+
 # =====================================================
 # ERRO
 # =====================================================
@@ -577,6 +632,79 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 # =====================================================
+# SENHAS
+# =====================================================
+
+  /redefinir-senha:
+    post:
+      tags:
+        - Usuários
+      summary: Redefinir senha do aluno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedefinirSenhaInput"
+      responses:
+        "200":
+          description: Senha redefinida
+          content:
+            application/json:
+              example:
+                mensagem: Senha redefinida com sucesso
+                senha_temporaria: FractaA1b2C
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Aluno não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /alterar-senha:
+    post:
+      tags:
+        - Usuários
+      summary: Alterar senha do aluno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlterarSenhaInput"
+      responses:
+        "200":
+          description: Senha alterada
+          content:
+            application/json:
+              example:
+                mensagem: Senha alterada com sucesso
+        "400":
+          description: Dados inválidos ou senha com menos de 6 caracteres
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Senha atual incorreta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Aluno não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
 # EXERCÍCIOS
 # =====================================================
 
@@ -649,6 +777,50 @@ paths:
 
             application/json:
 
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /gerar-questoes/{id_capitulo}:
+    post:
+      tags:
+        - Exercícios
+      summary: Gerar questões por capítulo usando IA
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_capitulo
+          in: path
+          required: true
+          description: ID do capítulo usado para gerar as questões
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Questões geradas e cadastradas
+          content:
+            application/json:
+              example:
+                mensagem: Questões geradas com sucesso
+                id_capitulo: 12
+                capitulo: Operações com frações
+                quantidade: 20
+                questoes: []
+        "400":
+          description: Capítulo sem conteúdo cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Capítulo não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Formato inválido retornado pela IA ou erro interno
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/Error"
 # =====================================================
@@ -900,6 +1072,41 @@ paths:
                 items:
                   $ref: "#/components/schemas/Trilha"
 
+  /trilhas/{id_trilha}:
+    get:
+      tags:
+        - Trilhas
+      summary: Consultar uma trilha e seus capítulos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_trilha
+          in: path
+          required: true
+          description: ID da trilha
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trilha com seus capítulos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trilha:
+                    $ref: "#/components/schemas/Trilha"
+                  capitulos:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Capitulo"
+        "404":
+          description: Trilha não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /trilhas/{id_trilha}/capitulos:
     get:
       tags:
@@ -923,6 +1130,34 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Capitulo"
+
+  /turmas/{id_turma}/trilha:
+    get:
+      tags:
+        - Trilhas
+      summary: Consultar a trilha e os capítulos de uma turma
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_turma
+          in: path
+          required: true
+          description: ID da turma
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trilha da turma com seus capítulos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrilhaTurmaResponse"
+        "404":
+          description: Turma, trilha ou capítulos não encontrados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 # =====================================================
 # PROGRESSO

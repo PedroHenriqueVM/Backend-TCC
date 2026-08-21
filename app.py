@@ -8,9 +8,7 @@ import random
 import string
 from werkzeug.security import generate_password_hash
 from gemini_client import client
-
 from supabase_client import supabase
-
 import os
 
 load_dotenv()
@@ -20,7 +18,6 @@ app = Flask(__name__)
 app.config['SWAGGER'] = {
     'openapi': '3.0.3'
 }
-
 swagger = Swagger(app, template_file='openapi.yaml')
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
@@ -360,7 +357,7 @@ def gerar_questoes(id_capitulo):
 Você é um professor de matemática especializado no ensino
 de alunos do 6º ano do Ensino Fundamental.
 
-Crie 10 questões de matemática baseadas EXCLUSIVAMENTE
+Crie 20 questões de matemática baseadas EXCLUSIVAMENTE
 nos conteúdos deste capítulo.
 
 TRILHA:
