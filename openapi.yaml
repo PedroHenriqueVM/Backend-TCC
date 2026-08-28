@@ -133,6 +133,17 @@ components:
           nullable: true
           example: 2
 
+        avatar:
+          type: string
+          nullable: true
+          enum:
+            - silas
+            - martim
+            - bento
+            - clarice
+            - tadeu
+          example: silas
+
     UsuarioInput:
 
       type: object
@@ -160,6 +171,41 @@ components:
         tipo_usuario:
           type: string
           example: aluno
+
+    AvatarInput:
+      type: object
+      required:
+        - avatar
+      properties:
+        avatar:
+          type: string
+          enum:
+            - silas
+            - martim
+            - bento
+            - clarice
+            - tadeu
+          example: silas
+
+    AvatarResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nome:
+          type: string
+          example: João Silva
+        avatar:
+          type: string
+          nullable: true
+          enum:
+            - silas
+            - martim
+            - bento
+            - clarice
+            - tadeu
+          example: silas
 
 # =====================================================
 # EXERCÍCIO
@@ -619,6 +665,132 @@ paths:
               example:
 
                 mensagem: Usuário removido com sucesso
+
+        "404":
+
+          description: Usuário não encontrado
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# AVATAR
+# =====================================================
+
+  /usuarios/{id}/avatar:
+
+    get:
+
+      tags:
+        - Usuários
+
+      summary: Consultar avatar do usuário
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+
+        - name: id
+
+          in: path
+
+          required: true
+
+          description: ID do usuário
+
+          schema:
+
+            type: integer
+
+      responses:
+
+        "200":
+
+          description: Avatar do usuário
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/AvatarResponse"
+
+        "404":
+
+          description: Usuário não encontrado
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+
+      tags:
+        - Usuários
+
+      summary: Escolher avatar do usuário
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+
+        - name: id
+
+          in: path
+
+          required: true
+
+          description: ID do usuário
+
+          schema:
+
+            type: integer
+
+      requestBody:
+
+        required: true
+
+        content:
+
+          application/json:
+
+            schema:
+              $ref: "#/components/schemas/AvatarInput"
+
+      responses:
+
+        "200":
+
+          description: Avatar atualizado
+
+          content:
+
+            application/json:
+
+              example:
+                mensagem: Avatar atualizado com sucesso
+                id_usuario: 1
+                avatar: silas
+
+        "400":
+
+          description: Dados inválidos ou avatar não permitido
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
 
         "404":
 

@@ -109,7 +109,101 @@ def post_usuario():
         return jsonify({
             "erro": str(erro)
         }), 500
-    
+
+# ==========================
+# ESCOLHER AVATAR
+# ==========================
+
+@app.route("/usuarios/<int:id>/avatar", methods=["PUT"])
+def escolher_avatar(id):
+
+    dados = request.get_json()
+
+    if not dados:
+        return jsonify({
+            "erro": "Envie os dados"
+        }), 400
+
+    avatar = dados.get("avatar")
+
+    avatares_permitidos = [
+        "silas",
+        "martim",
+        "bento",
+        "clarice",
+        "tadeu"
+    ]
+
+    if avatar not in avatares_permitidos:
+        return jsonify({
+            "erro": "Avatar inválido",
+            "avatares_disponiveis": avatares_permitidos
+        }), 400
+
+    try:
+
+        usuario = supabase.table("usuarios") \
+            .select("id, nome, email") \
+            .eq("id", id) \
+            .execute()
+
+        if not usuario.data:
+            return jsonify({
+                "erro": "Usuário não encontrado"
+            }), 404
+
+        supabase.table("usuarios") \
+            .update({
+                "avatar": avatar
+            }) \
+            .eq("id", id) \
+            .execute()
+
+        return jsonify({
+            "mensagem": "Avatar atualizado com sucesso",
+            "id_usuario": id,
+            "avatar": avatar
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ==========================
+# BUSCAR AVATAR DO USUÁRIO
+# ==========================
+
+@app.route("/usuarios/<int:id>/avatar", methods=["GET"])
+def get_avatar(id):
+
+    try:
+
+        resposta = supabase.table("usuarios") \
+            .select("id, nome, avatar") \
+            .eq("id", id) \
+            .execute()
+
+        if not resposta.data:
+            return jsonify({
+                "erro": "Usuário não encontrado"
+            }), 404
+
+        usuario = resposta.data[0]
+
+        return jsonify({
+            "id": usuario["id"],
+            "nome": usuario["nome"],
+            "avatar": usuario["avatar"]
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
 # ==========================
 # DELETAR USUÁRIO
 # ==========================
