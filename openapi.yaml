@@ -57,6 +57,9 @@ tags:
   - name: Inteligência Artificial
     description: Análises e devolutivas pedagógicas
 
+  - name: Relatórios
+    description: Geração de relatórios de desempenho em PDF
+
 components:
 
   securitySchemes:
@@ -541,6 +544,7 @@ paths:
 
         "400":
           description: Dados inválidos
+
 
           content:
             application/json:
@@ -1547,3 +1551,77 @@ paths:
 
         "404":
           description: Turma não encontrada
+
+# =====================================================
+# RELATÓRIOS EM PDF
+# =====================================================
+
+  /relatorio-aluno/{id_aluno}:
+    get:
+      tags:
+        - Relatórios
+      summary: Gerar relatório individual do aluno em PDF
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_aluno
+          in: path
+          required: true
+          description: ID do aluno
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Relatório individual gerado em PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Aluno não encontrado ou sem tentativas registradas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Falha ao gerar o relatório
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /relatorio-turma/{id_turma}:
+    get:
+      tags:
+        - Relatórios
+      summary: Gerar relatório da turma em PDF
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id_turma
+          in: path
+          required: true
+          description: ID da turma
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Relatório da turma gerado em PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Turma não encontrada ou sem alunos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Falha ao gerar o relatório
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

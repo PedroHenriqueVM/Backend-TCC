@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_cors import CORS
@@ -10,6 +10,13 @@ from werkzeug.security import generate_password_hash
 from gemini_client import client
 from supabase_client import supabase
 import os
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.units import cm
+import io
 
 load_dotenv()
 
@@ -64,7 +71,7 @@ def post_usuario():
             "erro": "Envie os dados"
         }), 400
 
-    nome = dados.get("nome")
+    nome = dados.get("nome")    
     email = dados.get("email")
     senha = dados.get("senha")
     tipo_usuario = dados.get("tipo_usuario")
@@ -1322,20 +1329,883 @@ def devolutiva_turma(id_turma):
             "erro": str(erro)
         }), 500
 
+# ============================================
+# RELATÓRIO INDIVIDUAL DO ALUNO EM PDF
+# ============================================
+
+@app.route("/relatorio-aluno/<int:id_aluno>", methods=["GET"])
+def relatorio_aluno_pdf(id_aluno):
+
+    try:
+
+        # =====================================
+        # BUSCAR ALUNO
+        # =====================================
+
+        aluno_resposta = supabase.table("usuarios") \
+            .select("id, nome, email, id_turma") \
+            .eq("id", id_aluno) \
+            .eq("tipo_usuario", "aluno") \
+            .execute()
+
+        if not aluno_resposta.data:
+            return jsonify({
+                "erro": "Aluno não encontrado"
+            }), 404
+
+        aluno = aluno_resposta.data[0]
+
+        # =====================================
+        # BUSCAR TURMA
+        # =====================================
+
+        turma_nome = "Não informado"
+
+        if aluno.get("id_turma"):
+
+            turma_resposta = supabase.table("turmas") \
+                .select("nome") \
+                .eq("id", aluno["id_turma"]) \
+                .execute()
+
+            if turma_resposta.data:
+                turma_nome = turma_resposta.data[0]["nome"]
+
+        # =====================================
+        # BUSCAR TENTATIVAS
+        # =====================================
+
+        tentativas_resposta = supabase.table("tentativas") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
+
+        tentativas = tentativas_resposta.data
+
+        if not tentativas:
+
+            return jsonify({
+                "erro": "Aluno ainda não possui tentativas registradas"
+            }), 404
+
+        # =====================================
+        # CALCULAR DESEMPENHO
+        # =====================================
+
+        total = len(tentativas)
+
+        acertos = sum(
+            1 for tentativa in tentativas
+            if tentativa["correta"]
+        )
+
+        erros = total - acertos
+
+        percentual = round(
+            (acertos / total) * 100,
+            2
+        )
+
+        # =====================================
+        # DESEMPENHO POR CATEGORIA
+        # =====================================
+
+        categorias = {}
+
+        for tentativa in tentativas:
+
+            exercicio_resposta = supabase.table("exercicios") \
+                .select("categoria") \
+                .eq("id", tentativa["id_exercicio"]) \
+                .execute()
+
+            if not exercicio_resposta.data:
+                continue
+
+            categoria = exercicio_resposta.data[0]["categoria"]
+
+            if categoria not in categorias:
+
+                categorias[categoria] = {
+                    "total": 0,
+                    "acertos": 0,
+                    "erros": 0
+                }
+
+            categorias[categoria]["total"] += 1
+
+            if tentativa["correta"]:
+                categorias[categoria]["acertos"] += 1
+            else:
+                categorias[categoria]["erros"] += 1
+
+        # =====================================
+        # CALCULAR PERCENTUAIS DOS TEMAS
+        # =====================================
+
+        melhor_tema = None
+        pior_tema = None
+
+        maior_percentual = -1
+        menor_percentual = 101
+
+        for categoria, dados in categorias.items():
+
+            percentual_categoria = round(
+                (dados["acertos"] / dados["total"]) * 100,
+                2
+            )
+
+            dados["percentual"] = percentual_categoria
+
+            if percentual_categoria > maior_percentual:
+
+                maior_percentual = percentual_categoria
+                melhor_tema = categoria
+
+            if percentual_categoria < menor_percentual:
+
+                menor_percentual = percentual_categoria
+                pior_tema = categoria
+
+        # =====================================
+        # FEEDBACK
+        # =====================================
+
+        if percentual >= 80:
+
+            feedback = (
+                "O aluno apresenta excelente desempenho "
+                "nas atividades realizadas."
+            )
+
+        elif percentual >= 60:
+
+            feedback = (
+                "O aluno apresenta um bom desempenho, "
+                "mas ainda possui conteúdos que precisam "
+                "ser reforçados."
+            )
+
+        else:
+
+            feedback = (
+                "O aluno apresenta dificuldades nos conteúdos "
+                "avaliados. Recomenda-se reforçar os conceitos "
+                "básicos e realizar novas atividades."
+            )
+
+        # =====================================
+        # CRIAR PDF
+        # =====================================
+
+        buffer = io.BytesIO()
+
+        documento = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=2 * cm,
+            leftMargin=2 * cm,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm
+        )
+
+        estilos = getSampleStyleSheet()
+
+        titulo = ParagraphStyle(
+            "Titulo",
+            parent=estilos["Title"],
+            alignment=TA_CENTER,
+            fontSize=22,
+            spaceAfter=20
+        )
+
+        subtitulo = ParagraphStyle(
+            "Subtitulo",
+            parent=estilos["Heading2"],
+            fontSize=14,
+            spaceBefore=15,
+            spaceAfter=10
+        )
+
+        texto = ParagraphStyle(
+            "Texto",
+            parent=estilos["BodyText"],
+            fontSize=10,
+            leading=15
+        )
+
+        elementos = []
+
+        # =====================================
+        # CABEÇALHO
+        # =====================================
+
+        elementos.append(
+            Paragraph("FRACTA", titulo)
+        )
+
+        elementos.append(
+            Paragraph(
+                "Relatório Individual de Desempenho",
+                subtitulo
+            )
+        )
+
+        elementos.append(
+            Paragraph(
+                f"<b>Aluno:</b> {aluno['nome']}<br/>"
+                f"<b>E-mail:</b> {aluno['email']}<br/>"
+                f"<b>Turma:</b> {turma_nome}",
+                texto
+            )
+        )
+
+        elementos.append(Spacer(1, 15))
+
+        # =====================================
+        # RESUMO
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Resumo do desempenho",
+                subtitulo
+            )
+        )
+
+        resumo = [
+            ["Indicador", "Resultado"],
+            ["Questões respondidas", str(total)],
+            ["Acertos", str(acertos)],
+            ["Erros", str(erros)],
+            ["Aproveitamento", f"{percentual}%"]
+        ]
+
+        tabela_resumo = Table(
+            resumo,
+            colWidths=[9 * cm, 7 * cm]
+        )
+
+        tabela_resumo.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C56E33")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("PADDING", (0, 0), (-1, -1), 8),
+            ])
+        )
+
+        elementos.append(tabela_resumo)
+
+        # =====================================
+        # TEMAS
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Desempenho por tema",
+                subtitulo
+            )
+        )
+
+        dados_temas = [
+            [
+                "Tema",
+                "Questões",
+                "Acertos",
+                "Erros",
+                "Aproveitamento"
+            ]
+        ]
+
+        for categoria, dados in categorias.items():
+
+            dados_temas.append([
+                categoria,
+                str(dados["total"]),
+                str(dados["acertos"]),
+                str(dados["erros"]),
+                f"{dados['percentual']}%"
+            ])
+
+        tabela_temas = Table(
+            dados_temas,
+            colWidths=[
+                6 * cm,
+                2.3 * cm,
+                2.3 * cm,
+                2.3 * cm,
+                3 * cm
+            ]
+        )
+
+        tabela_temas.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C56E33")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("PADDING", (0, 0), (-1, -1), 6),
+            ])
+        )
+
+        elementos.append(tabela_temas)
+
+        # =====================================
+        # ANÁLISE
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Análise pedagógica",
+                subtitulo
+            )
+        )
+
+        if melhor_tema:
+
+            elementos.append(
+                Paragraph(
+                    f"<b>Melhor desempenho:</b> "
+                    f"{melhor_tema} ({maior_percentual}%).",
+                    texto
+                )
+            )
+
+        if pior_tema:
+
+            elementos.append(
+                Paragraph(
+                    f"<b>Maior dificuldade:</b> "
+                    f"{pior_tema} ({menor_percentual}%).",
+                    texto
+                )
+            )
+
+        elementos.append(Spacer(1, 10))
+
+        elementos.append(
+            Paragraph(
+                feedback,
+                texto
+            )
+        )
+
+        # =====================================
+        # RECOMENDAÇÕES
+        # =====================================
+        elementos.append(
+            Paragraph(
+                "Recomendações",
+                subtitulo
+            )
+        )
+
+        if pior_tema:
+            recomendacao = (
+                f"Recomenda-se reforçar principalmente "
+                f"o conteúdo de <b>{pior_tema}</b>, "
+                f"realizando atividades adicionais e "
+                f"acompanhando a evolução do aluno."
+            )
+        else:
+            recomendacao = (
+                "Recomenda-se continuar acompanhando "
+                "o desempenho do aluno nas próximas atividades."
+            )
+        elementos.append(
+            Paragraph(
+                recomendacao,
+                texto
+            )
+        )
+
+        # =====================================
+        # GERAR PDF
+        # =====================================
+        documento.build(elementos)
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"relatorio_{aluno['nome']}.pdf"
+        )
+
+    except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
+# ============================================
+# RELATÓRIO DA TURMA EM PDF
+# ============================================
+
+@app.route("/relatorio-turma/<int:id_turma>", methods=["GET"])
+def relatorio_turma_pdf(id_turma):
+    try:
+        # =====================================
+        # BUSCAR TURMA
+        # =====================================
+        turma_resposta = supabase.table("turmas") \
+            .select("*") \
+            .eq("id", id_turma) \
+            .execute()
+        if not turma_resposta.data:
+            return jsonify({
+                "erro": "Turma não encontrada"
+            }), 404
+        turma = turma_resposta.data[0]
+
+        # =====================================
+        # BUSCAR PROFESSOR
+        # =====================================
+        professor_nome = "Não informado"
+        if turma.get("id_professor"):
+            professor = supabase.table("usuarios") \
+                .select("nome") \
+                .eq("id", turma["id_professor"]) \
+                .eq("tipo_usuario", "professor") \
+                .execute()
+            if professor.data:
+                professor_nome = professor.data[0]["nome"]
+
+        # =====================================
+        # BUSCAR ALUNOS DA TURMA
+        # =====================================
+        alunos_resposta = supabase.table("usuarios") \
+            .select("id, nome, email") \
+            .eq("id_turma", id_turma) \
+            .eq("tipo_usuario", "aluno") \
+            .execute()
+        alunos = alunos_resposta.data
+        if not alunos:
+            return jsonify({
+                "erro": "A turma ainda não possui alunos"
+            }), 404
+
+        # =====================================
+        # VARIÁVEIS GERAIS
+        # =====================================
+        total_tentativas = 0
+        total_acertos = 0
+        total_erros = 0
+
+        desempenho_alunos = {}
+
+        categorias = {}
+
+        # =====================================
+        # ANALISAR CADA ALUNO
+        # =====================================
+        for aluno in alunos:
+            tentativas_resposta = supabase.table("tentativas") \
+                .select("*") \
+                .eq("id_aluno", aluno["id"]) \
+                .execute()
+            tentativas = tentativas_resposta.data
+            aluno_total = len(tentativas)
+            aluno_acertos = sum(
+                1 for tentativa in tentativas
+                if tentativa["correta"]
+            )
+            aluno_erros = aluno_total - aluno_acertos
+            if aluno_total > 0:
+                aluno_percentual = round(
+                    (aluno_acertos / aluno_total) * 100,
+                    2
+                )
+            else:
+                aluno_percentual = 0
+            desempenho_alunos[aluno["id"]] = {
+                "nome": aluno["nome"],
+                "total": aluno_total,
+                "acertos": aluno_acertos,
+                "erros": aluno_erros,
+                "percentual": aluno_percentual
+            }
+            total_tentativas += aluno_total
+            total_acertos += aluno_acertos
+            total_erros += aluno_erros
+
+            # =================================
+            # CATEGORIAS
+            # =================================
+            for tentativa in tentativas:
+
+                exercicio = supabase.table("exercicios") \
+                    .select("categoria") \
+                    .eq("id", tentativa["id_exercicio"]) \
+                    .execute()
+                if not exercicio.data:
+                    continue
+                categoria = exercicio.data[0]["categoria"]
+                if categoria not in categorias:
+                    categorias[categoria] = {
+                        "total": 0,
+                        "acertos": 0,
+                        "erros": 0
+                    }
+
+                categorias[categoria]["total"] += 1
+                if tentativa["correta"]:
+                    categorias[categoria]["acertos"] += 1
+                else:
+                    categorias[categoria]["erros"] += 1
+
+        # =====================================
+        # MÉDIA DA TURMA
+        # =====================================
+        if total_tentativas > 0:
+            percentual_turma = round(
+                (total_acertos / total_tentativas) * 100,
+                2
+            )
+
+        else:
+            percentual_turma = 0
+
+        # =====================================
+        # PERCENTUAIS DOS TEMAS
+        # =====================================
+        melhor_tema = None
+        pior_tema = None
+
+        maior_percentual = -1
+        menor_percentual = 101
+
+        for categoria, dados in categorias.items():
+            percentual_categoria = round(
+                (dados["acertos"] / dados["total"]) * 100,
+                2
+            )
+            dados["percentual"] = percentual_categoria
+            if percentual_categoria > maior_percentual:
+                maior_percentual = percentual_categoria
+                melhor_tema = categoria
+            if percentual_categoria < menor_percentual:
+                menor_percentual = percentual_categoria
+                pior_tema = categoria
+
+        # =====================================
+        # ORDENAR RANKING
+        # =====================================
+        ranking = sorted(
+            desempenho_alunos.values(),
+            key=lambda aluno: aluno["percentual"],
+            reverse=True
+        )
+
+        # =====================================
+        # CRIAR PDF
+        # =====================================
+        buffer = io.BytesIO()
+        documento = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=2 * cm,
+            leftMargin=2 * cm,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm
+        )
+        estilos = getSampleStyleSheet()
+        titulo = ParagraphStyle(
+            "TituloTurma",
+            parent=estilos["Title"],
+            alignment=TA_CENTER,
+            fontSize=22,
+            spaceAfter=20
+        )
+        subtitulo = ParagraphStyle(
+            "SubtituloTurma",
+            parent=estilos["Heading2"],
+            fontSize=14,
+            spaceBefore=15,
+            spaceAfter=10
+        )
+        texto = ParagraphStyle(
+            "TextoTurma",
+            parent=estilos["BodyText"],
+            fontSize=10,
+            leading=15
+        )
+
+        elementos = []
+
+        # =====================================
+        # CABEÇALHO
+        # =====================================
+        elementos.append(
+            Paragraph(
+                "FRACTA",
+                titulo
+            )
+        )
+        elementos.append(
+            Paragraph(
+                "Relatório de Desempenho da Turma",
+                subtitulo
+            )
+        )
+        elementos.append(
+            Paragraph(
+                f"<b>Turma:</b> {turma['nome']}<br/>"
+                f"<b>Professor:</b> {professor_nome}<br/>"
+                f"<b>Total de alunos:</b> {len(alunos)}",
+                texto
+            )
+        )
+
+        elementos.append(Spacer(1, 15))
+
+        # =====================================
+        # RESUMO
+        # =====================================
+        elementos.append(
+            Paragraph(
+                "Resumo geral",
+                subtitulo
+            )
+        )
+        resumo = [
+            ["Indicador", "Resultado"],
+            ["Alunos", str(len(alunos))],
+            ["Questões respondidas", str(total_tentativas)],
+            ["Acertos", str(total_acertos)],
+            ["Erros", str(total_erros)],
+            ["Aproveitamento da turma", f"{percentual_turma}%"]
+        ]
+        tabela_resumo = Table(
+            resumo,
+            colWidths=[9 * cm, 7 * cm]
+        )
+        tabela_resumo.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C56E33")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("PADDING", (0, 0), (-1, -1), 8),
+            ])
+        )
+
+        elementos.append(tabela_resumo)
+
+        # =====================================
+        # DESEMPENHO POR TEMA
+        # =====================================
+        elementos.append(
+            Paragraph(
+                "Desempenho por tema",
+                subtitulo
+            )
+        )
+        dados_temas = [
+            [
+                "Tema",
+                "Questões",
+                "Acertos",
+                "Erros",
+                "Aproveitamento"
+            ]
+        ]
+
+        for categoria, dados in categorias.items():
+            dados_temas.append([
+                categoria,
+                str(dados["total"]),
+                str(dados["acertos"]),
+                str(dados["erros"]),
+                f"{dados['percentual']}%"
+            ])
+
+        if len(dados_temas) > 1:
+            tabela_temas = Table(
+                dados_temas,
+                colWidths=[
+                    6 * cm,
+                    2.3 * cm,
+                    2.3 * cm,
+                    2.3 * cm,
+                    3 * cm
+                ]
+            )
+
+            tabela_temas.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C56E33")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("PADDING", (0, 0), (-1, -1), 6),
+                ])
+            )
+
+            elementos.append(tabela_temas)
+
+        # =====================================
+        # RANKING
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Desempenho dos alunos",
+                subtitulo
+            )
+        )
+
+        dados_ranking = [
+            [
+                "Posição",
+                "Aluno",
+                "Questões",
+                "Acertos",
+                "Aproveitamento"
+            ]
+        ]
+
+        for posicao, aluno in enumerate(ranking, start=1):
+            dados_ranking.append([
+                str(posicao),
+                aluno["nome"],
+                str(aluno["total"]),
+                str(aluno["acertos"]),
+                f"{aluno['percentual']}%"
+            ])
+
+        tabela_ranking = Table(
+            dados_ranking,
+            colWidths=[
+                1.5 * cm,
+                7 * cm,
+                2.5 * cm,
+                2.5 * cm,
+                3 * cm
+            ]
+        )
+
+        tabela_ranking.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C56E33")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("PADDING", (0, 0), (-1, -1), 6),
+            ])
+        )
+
+        elementos.append(tabela_ranking)
+
+        # =====================================
+        # ANÁLISE
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Análise da turma",
+                subtitulo
+            )
+        )
+
+        if melhor_tema:
+            elementos.append(
+                Paragraph(
+                    f"<b>Melhor desempenho coletivo:</b> "
+                    f"{melhor_tema} ({maior_percentual}%).",
+                    texto
+                )
+            )
+
+        if pior_tema:
+            elementos.append(
+                Paragraph(
+                    f"<b>Maior dificuldade coletiva:</b> "
+                    f"{pior_tema} ({menor_percentual}%).",
+                    texto
+                )
+            )
+
+        elementos.append(Spacer(1, 10))
+
+        if percentual_turma >= 80:
+            analise = (
+                "A turma apresenta excelente desempenho geral. "
+                "Os resultados indicam bom domínio dos conteúdos."
+            )
+        elif percentual_turma >= 60:
+
+            analise = (
+                "A turma apresenta desempenho satisfatório, "
+                "porém alguns conteúdos precisam ser reforçados."
+            )
+        else:
+            analise = (
+                "A turma apresenta dificuldades nos conteúdos "
+                "avaliados. Recomenda-se reforçar os conceitos "
+                "fundamentais e realizar atividades adicionais."
+            )
+        elementos.append(
+            Paragraph(
+                analise,
+                texto
+            )
+        )
+
+        # =====================================
+        # RECOMENDAÇÕES
+        # =====================================
+
+        elementos.append(
+            Paragraph(
+                "Recomendações para o professor",
+                subtitulo
+            )
+        )
+
+        if pior_tema:
+            recomendacao = (
+                f"Recomenda-se trabalhar novamente o conteúdo "
+                f"de <b>{pior_tema}</b>, utilizando atividades "
+                f"de reforço e acompanhamento individual dos "
+                f"alunos que apresentaram menor desempenho."
+            )
+        else:
+            recomendacao = (
+                "Recomenda-se continuar acompanhando o "
+                "desempenho da turma e realizar novas avaliações."
+            )
+        elementos.append(
+            Paragraph(
+                recomendacao,
+                texto
+            )
+        )
+
+        # =====================================
+        # GERAR PDF
+        # =====================================
+        documento.build(elementos)
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"relatorio_turma_{turma['nome']}.pdf"
+        )
+
+    except Exception as erro:
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
 # ==========================
 # ERROS
 # ==========================
-
 @app.errorhandler(404)
 def erro404(error):
-
     return jsonify({
         "erro": "URL não encontrada"
     }), 404
 
 @app.errorhandler(500)
 def erro500(error):
-
     return jsonify({
         "erro": "Erro interno no servidor"
     }), 500
