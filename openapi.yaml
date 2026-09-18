@@ -42,6 +42,12 @@ tags:
   - name: Tentativas
     description: Registro das respostas dos alunos
 
+  - name: Jogos
+    description: Registro e histórico das partidas dos alunos
+
+  - name: Recuperação
+    description: Atividades de recuperação pedagógica
+
   - name: Turmas
     description: Gerenciamento de turmas
 
@@ -309,6 +315,130 @@ components:
           type: string
           nullable: true
           example: null
+
+# =====================================================
+# JOGOS
+# =====================================================
+
+    PartidaInput:
+
+      type: object
+
+      required:
+        - id_aluno
+        - jogo
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 1
+
+        jogo:
+          type: string
+          example: Memória das Frações
+
+        pontuacao:
+          type: integer
+          default: 0
+          example: 850
+
+        resultado:
+          type: string
+          nullable: true
+          example: vitória
+
+        tempo_gasto_segundos:
+          type: integer
+          nullable: true
+          example: 95
+
+    Partida:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 10
+
+        id_aluno:
+          type: integer
+          example: 1
+
+        jogo:
+          type: string
+          example: Memória das Frações
+
+        pontuacao:
+          type: integer
+          example: 850
+
+        resultado:
+          type: string
+          nullable: true
+          example: vitória
+
+        tempo_gasto_segundos:
+          type: integer
+          nullable: true
+          example: 95
+
+        criado_em:
+          type: string
+          format: date-time
+          example: 2026-09-18T14:30:00Z
+
+# =====================================================
+# RECUPERAÇÃO
+# =====================================================
+
+    RecuperacaoInput:
+
+      type: object
+
+      properties:
+
+        id_aluno:
+          type: integer
+          example: 1
+
+        categoria:
+          type: string
+          example: Adição de frações
+
+        motivo:
+          type: string
+          example: Baixo aproveitamento nas atividades do capítulo
+
+    Recuperacao:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 4
+
+        id_aluno:
+          type: integer
+          example: 1
+
+        categoria:
+          type: string
+          nullable: true
+          example: Adição de frações
+
+        motivo:
+          type: string
+          nullable: true
+          example: Baixo aproveitamento nas atividades do capítulo
+
+        status:
+          type: string
+          example: pendente
 
 # =====================================================
 # TURMA
@@ -999,6 +1129,189 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+# =====================================================
+# JOGOS
+# =====================================================
+
+  /partidas:
+
+    post:
+
+      tags:
+        - Jogos
+
+      summary: Registrar uma partida do aluno
+
+      security:
+        - BearerAuth: []
+
+      requestBody:
+
+        required: true
+
+        content:
+
+          application/json:
+
+            schema:
+              $ref: "#/components/schemas/PartidaInput"
+
+      responses:
+
+        "201":
+
+          description: Partida registrada
+
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Partida registrada com sucesso
+                partida: []
+
+        "400":
+
+          description: Dados inválidos
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "500":
+
+          description: Erro ao registrar partida
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /partidas/{id_aluno}:
+
+    get:
+
+      tags:
+        - Jogos
+
+      summary: Listar o histórico de partidas do aluno
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+
+        - name: id_aluno
+
+          in: path
+
+          required: true
+
+          description: ID do aluno
+
+          schema:
+
+            type: integer
+
+      responses:
+
+        "200":
+
+          description: Histórico de partidas
+
+          content:
+
+            application/json:
+
+              schema:
+
+                type: array
+
+                items:
+                  $ref: "#/components/schemas/Partida"
+
+        "500":
+
+          description: Erro ao buscar partidas
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+# =====================================================
+# RECUPERAÇÃO
+# =====================================================
+
+  /recuperacao:
+
+    post:
+
+      tags:
+        - Recuperação
+
+      summary: Criar uma atividade de recuperação
+
+      security:
+        - BearerAuth: []
+
+      requestBody:
+
+        required: true
+
+        content:
+
+          application/json:
+
+            schema:
+              $ref: "#/components/schemas/RecuperacaoInput"
+
+      responses:
+
+        "201":
+
+          description: Atividade de recuperação criada
+
+          content:
+
+            application/json:
+
+              example:
+
+                mensagem: Atividade de recuperação criada
+                atividade: []
+
+        "400":
+
+          description: Dados não enviados
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "500":
+
+          description: Erro ao criar recuperação
+
+          content:
+
+            application/json:
+
+              schema:
+                $ref: "#/components/schemas/Error"
+
 # =====================================================
 # TENTATIVAS
 # =====================================================

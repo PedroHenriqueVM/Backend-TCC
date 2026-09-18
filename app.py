@@ -392,6 +392,69 @@ def alterar_senha():
         }), 500
 
 # ==========================
+# JOGOS
+# ==========================
+
+@app.route("/partidas", methods=["POST"])
+def registrar_partida():
+    dados = request.get_json()
+
+    if not dados:
+        return jsonify({"erro": "Dados não enviados"}), 400
+
+    id_aluno = dados.get("id_aluno")
+    jogo = dados.get("jogo")
+    pontuacao = dados.get("pontuacao", 0)
+    resultado = dados.get("resultado")
+    tempo = dados.get("tempo_gasto_segundos")
+
+    if not id_aluno or not jogo:
+        return jsonify({
+            "erro": "id_aluno e jogo são obrigatórios"
+        }), 400
+
+    try:
+        resposta = supabase.table("partidas").insert({
+            "id_aluno": id_aluno,
+            "jogo": jogo,
+            "pontuacao": pontuacao,
+            "resultado": resultado,
+            "tempo_gasto_segundos": tempo
+        }).execute()
+
+        return jsonify({
+            "mensagem": "Partida registrada com sucesso",
+            "partida": resposta.data
+        }), 201
+
+    except Exception as e:
+        return jsonify({
+            "erro": "Erro ao registrar partida",
+            "detalhes": str(e)
+        }), 500
+
+# ==========================
+# HISTÓRICO JOGOS
+# ==========================
+
+@app.route("/partidas/<int:id_aluno>", methods=["GET"])
+def listar_partidas(id_aluno):
+    try:
+        resposta = supabase.table("partidas") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .order("criado_em", desc=True) \
+            .execute()
+
+        return jsonify(resposta.data), 200
+
+    except Exception as e:
+        return jsonify({
+            "erro": "Erro ao buscar partidas",
+            "detalhes": str(e)
+        }), 500
+
+# ==========================
 # CADASTRAR EXERCÍCIO
 # ==========================
 
@@ -640,6 +703,36 @@ def get_tentativas_aluno(id_aluno):
     except Exception as erro:
         return jsonify({
             "erro": str(erro)
+        }), 500
+
+# ==========================
+# RECUPERAÇÃO
+# ==========================  
+
+@app.route("/recuperacao", methods=["POST"])
+def criar_recuperacao():
+    dados = request.get_json()
+
+    if not dados:
+        return jsonify({"erro": "Dados não enviados"}), 400
+
+    try:
+        resposta = supabase.table("atividades_recuperacao").insert({
+            "id_aluno": dados.get("id_aluno"),
+            "categoria": dados.get("categoria"),
+            "motivo": dados.get("motivo"),
+            "status": "pendente"
+        }).execute()
+
+        return jsonify({
+            "mensagem": "Atividade de recuperação criada",
+            "atividade": resposta.data
+        }), 201
+
+    except Exception as e:
+        return jsonify({
+            "erro": "Erro ao criar recuperação",
+            "detalhes": str(e)
         }), 500
 
 # ==========================
