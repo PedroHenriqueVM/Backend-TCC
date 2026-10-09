@@ -91,6 +91,11 @@ def post_usuario():
             "erro": "O nome deve ter pelo menos 3 caracteres"
         }), 400
 
+    if len(nome) > 85:
+            return jsonify({
+                "erro": "O nome deve ter no máximo 85 caracteres"
+            }), 400
+
     if not re.fullmatch(
         r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+)*",
         nome
