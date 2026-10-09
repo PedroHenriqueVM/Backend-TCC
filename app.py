@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
-from flask_cors import CORS
 from flasgger import Swagger
 from auth import auth_bp
 import random
@@ -71,7 +70,7 @@ def post_usuario():
             "erro": "Envie os dados"
         }), 400
 
-    nome = dados.get("nome")    
+    nome = dados.get("nome")
     email = dados.get("email")
     senha = dados.get("senha")
     tipo_usuario = dados.get("tipo_usuario")
@@ -81,6 +80,25 @@ def post_usuario():
             "erro": "Todos os campos são obrigatórios"
         }), 400
 
+    # Remove espaços do início e do final
+    nome = nome.strip()
+
+    # Valida o tamanho e o formato do nome
+    import re
+
+    if len(nome) < 3:
+        return jsonify({
+            "erro": "O nome deve ter pelo menos 3 caracteres"
+        }), 400
+
+    if not re.fullmatch(
+        r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+)*",
+        nome
+    ):
+        return jsonify({
+            "erro": "Digite um nome válido, usando apenas letras"
+        }), 400
+    
     # Validação do tipo de usuário
     if tipo_usuario not in ["aluno", "professor"]:
         return jsonify({
