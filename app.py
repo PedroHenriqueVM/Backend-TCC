@@ -2,7 +2,8 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flasgger import Swagger
-from auth import auth_bp
+from auth import auth_bp, token_obrigatorio
+from datetime import datetime, timezone
 import random
 import string
 from werkzeug.security import generate_password_hash
@@ -31,6 +32,143 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 CORS(app, origins="*")
 
 app.register_blueprint(auth_bp)
+
+
+# ==========================================
+# SISTEMA DE XP E CONQUISTAS
+# ==========================================
+
+def registrar_xp(id_aluno, quantidade, origem, evento_chave,
+                 descricao, referencia_tipo=None, referencia_id=None):
+
+    # Evita entregar XP duas vezes pelo mesmo evento
+    existente = supabase.table("historico_xp") \
+        .select("id") \
+        .eq("id_aluno", id_aluno) \
+        .eq("origem", origem) \
+        .eq("evento_chave", evento_chave) \
+        .execute()
+
+    if existente.data:
+        return False
+
+    supabase.table("historico_xp").insert({
+        "id_aluno": id_aluno,
+        "quantidade": quantidade,
+        "origem": origem,
+        "evento_chave": evento_chave,
+        "descricao": descricao,
+        "referencia_tipo": referencia_tipo,
+        "referencia_id": referencia_id
+    }).execute()
+
+    return True
+
+
+def verificar_conquistas(id_aluno):
+
+    # Conta os acertos do aluno
+    tentativas = supabase.table("tentativas") \
+        .select("id") \
+        .eq("id_aluno", id_aluno) \
+        .eq("correta", True) \
+        .execute()
+
+    total_acertos = len(tentativas.data)
+
+    # Conta as partidas
+    partidas = supabase.table("partidas") \
+        .select("id") \
+        .eq("id_aluno", id_aluno) \
+        .execute()
+
+    total_partidas = len(partidas.data)
+
+    # Calcula o XP atual
+    historico = supabase.table("historico_xp") \
+        .select("quantidade") \
+        .eq("id_aluno", id_aluno) \
+        .execute()
+
+    total_xp = sum(
+        item["quantidade"] for item in historico.data
+    )
+
+    # Busca as conquistas disponíveis
+    conquistas = supabase.table("conquistas") \
+        .select("*") \
+        .eq("ativa", True) \
+        .execute()
+
+    # Busca as conquistas já desbloqueadas
+    desbloqueadas = supabase.table("conquistas_aluno") \
+        .select("id_conquista") \
+        .eq("id_aluno", id_aluno) \
+        .execute()
+
+    ids_desbloqueados = [
+        item["id_conquista"] for item in desbloqueadas.data
+    ]
+
+    novas_conquistas = []
+
+    for conquista in conquistas.data:
+
+        if conquista["id"] in ids_desbloqueados:
+            continue
+
+        codigo = conquista["codigo"]
+
+        # Verifica os requisitos de cada conquista
+        desbloquear = False
+
+        if codigo == "primeiro_acerto":
+            desbloquear = total_acertos >= 1
+
+        elif codigo == "dez_acertos":
+            desbloquear = total_acertos >= 10
+
+        elif codigo == "primeiro_jogo":
+            desbloquear = total_partidas >= 1
+
+        elif codigo == "cinco_partidas":
+            desbloquear = total_partidas >= 5
+
+        elif codigo == "cem_xp":
+            desbloquear = total_xp >= 100
+
+        if not desbloquear:
+            continue
+
+        recompensa = conquista["xp_recompensa"]
+
+        # Registra a conquista do aluno
+        supabase.table("conquistas_aluno").insert({
+            "id_aluno": id_aluno,
+            "id_conquista": conquista["id"],
+            "xp_recebido": recompensa
+        }).execute()
+
+        # Entrega a recompensa de XP
+        if recompensa > 0:
+            registrar_xp(
+                id_aluno=id_aluno,
+                quantidade=recompensa,
+                origem="conquista",
+                evento_chave=codigo,
+                descricao=f"Conquista desbloqueada: {conquista['nome']}",
+                referencia_tipo="conquista",
+                referencia_id=conquista["id"]
+            )
+
+        novas_conquistas.append({
+            "codigo": codigo,
+            "nome": conquista["nome"],
+            "xp_recebido": recompensa
+        })
+
+    return novas_conquistas
+
 
 # ==========================
 # ROTA PRINCIPAL
@@ -414,55 +552,274 @@ def alterar_senha():
             "erro": str(erro)
         }), 500
 
-# ==========================
-# JOGOS
-# ==========================
+# ==========================================
+# REGISTRAR PARTIDA E ATUALIZAR PROGRESSO
+# ==========================================
 
 @app.route("/partidas", methods=["POST"])
+@token_obrigatorio
 def registrar_partida():
+
     dados = request.get_json()
 
     if not dados:
-        return jsonify({"erro": "Dados não enviados"}), 400
+        return jsonify({
+            "erro": "Dados não enviados"
+        }), 400
 
-    id_aluno = dados.get("id_aluno")
+    if request.usuario.get("tipo_usuario") != "aluno":
+        return jsonify({
+            "erro": "Apenas alunos podem registrar partidas"
+        }), 403
+
+    id_aluno = request.usuario["id"]
+
     jogo = dados.get("jogo")
     pontuacao = dados.get("pontuacao", 0)
     resultado = dados.get("resultado")
     tempo = dados.get("tempo_gasto_segundos")
+    fases = dados.get("fases_concluidas", 0)
+    estrelas = dados.get("estrelas", 0)
+    detalhes = dados.get("detalhes", {})
+    fase_atual = dados.get("fase_atual", 1)
 
-    if not id_aluno or not jogo:
+    if not jogo:
         return jsonify({
-            "erro": "id_aluno e jogo são obrigatórios"
+            "erro": "O nome do jogo é obrigatório"
+        }), 400
+
+    if not isinstance(detalhes, dict):
+        return jsonify({
+            "erro": "detalhes deve ser um objeto"
         }), 400
 
     try:
+
+        pontuacao = int(pontuacao)
+        fases = int(fases)
+        estrelas = int(estrelas)
+        fase_atual = int(fase_atual)
+
+        if pontuacao < 0 or fases < 0 or estrelas < 0 or fase_atual < 1:
+            return jsonify({
+                "erro": "Os valores numéricos são inválidos"
+            }), 400
+
+        if tempo is not None:
+            tempo = int(tempo)
+
+            if tempo < 0:
+                return jsonify({
+                    "erro": "O tempo não pode ser negativo"
+                }), 400
+
+        # Registra a partida
         resposta = supabase.table("partidas").insert({
             "id_aluno": id_aluno,
             "jogo": jogo,
             "pontuacao": pontuacao,
             "resultado": resultado,
-            "tempo_gasto_segundos": tempo
+            "tempo_gasto_segundos": tempo,
+            "fases_concluidas": fases,
+            "estrelas": estrelas,
+            "detalhes": detalhes
         }).execute()
+
+        partida = resposta.data[0]
+
+        # Busca o progresso anterior do jogo
+        progresso = supabase.table("progresso_jogos") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .eq("jogo", jogo) \
+            .execute()
+
+        if progresso.data:
+
+            anterior = progresso.data[0]
+
+            melhor_pontuacao = max(
+                anterior["melhor_pontuacao"],
+                pontuacao
+            )
+
+            total_partidas = anterior["total_partidas"] + 1
+
+            fases_concluidas = max(
+                anterior["fases_concluidas"],
+                fases
+            )
+
+            fase_atual = max(
+                anterior["fase_atual"],
+                fase_atual
+            )
+
+        else:
+
+            melhor_pontuacao = pontuacao
+            total_partidas = 1
+            fases_concluidas = fases
+
+        # Atualiza ou cria o progresso do jogo
+        supabase.table("progresso_jogos").upsert({
+            "id_aluno": id_aluno,
+            "jogo": jogo,
+            "fases_concluidas": fases_concluidas,
+            "fase_atual": fase_atual,
+            "melhor_pontuacao": melhor_pontuacao,
+            "total_partidas": total_partidas,
+            "atualizado_em": datetime.now(timezone.utc).isoformat(),
+            "dados_extra": detalhes
+        }, on_conflict="id_aluno,jogo").execute()
+
+        # Cada registro de partida concluída vale 5 XP
+        registrar_xp(
+            id_aluno=id_aluno,
+            quantidade=5,
+            origem="jogo",
+            evento_chave=f"partida:{partida['id']}",
+            descricao=f"Partida concluída: {jogo}",
+            referencia_tipo="partida",
+            referencia_id=partida["id"]
+        )
+
+        novas_conquistas = verificar_conquistas(id_aluno)
+
+        xp_conquistas = sum(
+            item["xp_recebido"] for item in novas_conquistas
+        )
 
         return jsonify({
             "mensagem": "Partida registrada com sucesso",
-            "partida": resposta.data
+            "partida": partida,
+            "xp_recebido": 5 + xp_conquistas,
+            "novas_conquistas": novas_conquistas
         }), 201
 
-    except Exception as e:
+    except (ValueError, TypeError):
         return jsonify({
-            "erro": "Erro ao registrar partida",
-            "detalhes": str(e)
+            "erro": "Pontuação, fases, estrelas, tempo e fase atual devem ser números válidos"
+        }), 400
+
+    except Exception as erro:
+        print("Erro ao registrar partida:", erro)
+
+        return jsonify({
+            "erro": "Erro ao registrar partida"
         }), 500
 
-# ==========================
-# HISTÓRICO JOGOS
-# ==========================
+
+# ==========================================
+# CONSULTAR XP DO ALUNO
+# ==========================================
+
+@app.route("/me/xp", methods=["GET"])
+@token_obrigatorio
+def consultar_xp():
+
+    id_aluno = request.usuario["id"]
+
+    try:
+
+        historico = supabase.table("historico_xp") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .order("criado_em", desc=True) \
+            .execute()
+
+        total_xp = sum(
+            item["quantidade"] for item in historico.data
+        )
+
+        return jsonify({
+            "id_aluno": id_aluno,
+            "xp_total": total_xp,
+            "historico": historico.data
+        }), 200
+
+    except Exception as erro:
+        print("Erro ao consultar XP:", erro)
+
+        return jsonify({
+            "erro": "Erro ao consultar XP"
+        }), 500
+
+
+# ==========================================
+# CONSULTAR CONQUISTAS DO ALUNO
+# ==========================================
+
+@app.route("/me/conquistas", methods=["GET"])
+@token_obrigatorio
+def consultar_conquistas():
+
+    id_aluno = request.usuario["id"]
+
+    try:
+
+        resposta = supabase.table("conquistas_aluno") \
+            .select("*, conquistas(*)") \
+            .eq("id_aluno", id_aluno) \
+            .order("desbloqueada_em", desc=True) \
+            .execute()
+
+        return jsonify({
+            "conquistas": resposta.data
+        }), 200
+
+    except Exception as erro:
+        print("Erro ao consultar conquistas:", erro)
+
+        return jsonify({
+            "erro": "Erro ao consultar conquistas"
+        }), 500
+
+
+# ==========================================
+# CONSULTAR PROGRESSO DOS JOGOS
+# ==========================================
+
+@app.route("/me/progresso-jogos", methods=["GET"])
+@token_obrigatorio
+def consultar_progresso_jogos():
+
+    id_aluno = request.usuario["id"]
+
+    try:
+
+        resposta = supabase.table("progresso_jogos") \
+            .select("*") \
+            .eq("id_aluno", id_aluno) \
+            .execute()
+
+        return jsonify({
+            "progresso": resposta.data
+        }), 200
+
+    except Exception as erro:
+        print("Erro ao consultar progresso:", erro)
+
+        return jsonify({
+            "erro": "Erro ao consultar progresso dos jogos"
+        }), 500
+
+
+# ==========================================
+# HISTÓRICO DE PARTIDAS DO ALUNO
+# ==========================================
 
 @app.route("/partidas/<int:id_aluno>", methods=["GET"])
+@token_obrigatorio
 def listar_partidas(id_aluno):
+
+    if id_aluno != request.usuario["id"]:
+        return jsonify({
+            "erro": "Você não pode acessar as partidas de outro aluno"
+        }), 403
+
     try:
+
         resposta = supabase.table("partidas") \
             .select("*") \
             .eq("id_aluno", id_aluno) \
@@ -471,11 +828,13 @@ def listar_partidas(id_aluno):
 
         return jsonify(resposta.data), 200
 
-    except Exception as e:
+    except Exception as erro:
+        print("Erro ao buscar partidas:", erro)
+
         return jsonify({
-            "erro": "Erro ao buscar partidas",
-            "detalhes": str(e)
+            "erro": "Erro ao buscar partidas"
         }), 500
+
 
 # ==========================
 # CADASTRAR EXERCÍCIO
@@ -650,26 +1009,39 @@ def get_exercicios():
             "erro": "Falha ao buscar exercícios"
         }), 500
 
-# ==========================
-# TENTATIVAS QUESTÕES
-# ==========================
+
+# ==========================================
+# REGISTRAR TENTATIVA E ENTREGAR XP
+# ==========================================
 
 @app.route("/tentativas", methods=["POST"])
+@token_obrigatorio
 def post_tentativa():
 
     dados = request.get_json()
 
-    id_aluno = dados.get("id_aluno")
+    if not dados:
+        return jsonify({
+            "erro": "Envie os dados"
+        }), 400
+
+    id_aluno = request.usuario["id"]
     id_exercicio = dados.get("id_exercicio")
     resposta_usuario = dados.get("resposta_usuario")
 
-    if not id_aluno or not id_exercicio or not resposta_usuario:
+    if not id_exercicio or resposta_usuario is None:
         return jsonify({
-            "erro": "Dados obrigatórios"
+            "erro": "id_exercicio e resposta_usuario são obrigatórios"
         }), 400
+
+    if request.usuario.get("tipo_usuario") != "aluno":
+        return jsonify({
+            "erro": "Apenas alunos podem registrar tentativas"
+        }), 403
 
     try:
 
+        # Busca a resposta correta no banco
         exercicio = supabase.table("exercicios") \
             .select("*") \
             .eq("id", id_exercicio) \
@@ -683,9 +1055,9 @@ def post_tentativa():
         exercicio = exercicio.data[0]
 
         correta = (
-            resposta_usuario.strip()
+            str(resposta_usuario).strip().casefold()
             ==
-            exercicio["resposta_correta"].strip()
+            str(exercicio["resposta_correta"]).strip().casefold()
         )
 
         tipo_erro = None
@@ -693,23 +1065,65 @@ def post_tentativa():
         if not correta:
             tipo_erro = "Resposta incorreta"
 
-        supabase.table("tentativas").insert({
+        # Calcula o número da tentativa
+        anteriores = supabase.table("tentativas") \
+            .select("id") \
+            .eq("id_aluno", id_aluno) \
+            .eq("id_exercicio", id_exercicio) \
+            .execute()
+
+        numero_tentativa = len(anteriores.data) + 1
+
+        # Salva a tentativa
+        resposta = supabase.table("tentativas").insert({
             "id_aluno": id_aluno,
             "id_exercicio": id_exercicio,
-            "resposta_usuario": resposta_usuario,
+            "resposta_usuario": str(resposta_usuario),
             "correta": correta,
-            "tipo_erro": tipo_erro
+            "tipo_erro": tipo_erro,
+            "numero_tentativa": numero_tentativa
         }).execute()
+
+        xp_recebido = 0
+
+        # Entrega 10 XP somente no primeiro acerto da questão
+        if correta:
+
+            recebeu_xp = registrar_xp(
+                id_aluno=id_aluno,
+                quantidade=10,
+                origem="questao",
+                evento_chave=f"exercicio:{id_exercicio}",
+                descricao="Primeiro acerto de uma questão",
+                referencia_tipo="exercicio",
+                referencia_id=id_exercicio
+            )
+
+            if recebeu_xp:
+                xp_recebido = 10
+
+        # Verifica se alguma conquista foi desbloqueada
+        novas_conquistas = verificar_conquistas(id_aluno)
+
+        # Soma também as recompensas das conquistas
+        xp_conquistas = sum(
+            item["xp_recebido"] for item in novas_conquistas
+        )
 
         return jsonify({
             "correta": correta,
-            "tipo_erro": tipo_erro
+            "tipo_erro": tipo_erro,
+            "xp_recebido": xp_recebido + xp_conquistas,
+            "novas_conquistas": novas_conquistas
         }), 201
 
-    except:
+    except Exception as erro:
+        print("Erro ao registrar tentativa:", erro)
+
         return jsonify({
             "erro": "Falha ao registrar tentativa"
         }), 500
+
 
 # ==========================
 # LISTAR TENTATIVAS DO ALUNO
