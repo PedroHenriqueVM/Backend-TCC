@@ -283,15 +283,10 @@ components:
       type: object
 
       required:
-        - id_aluno
         - id_exercicio
         - resposta_usuario
 
       properties:
-
-        id_aluno:
-          type: integer
-          example: 1
 
         id_exercicio:
           type: integer
@@ -316,6 +311,24 @@ components:
           nullable: true
           example: null
 
+    TentativaResponse:
+      type: object
+      properties:
+        correta:
+          type: boolean
+          example: true
+        tipo_erro:
+          type: string
+          nullable: true
+          example: null
+        xp_recebido:
+          type: integer
+          example: 10
+        novas_conquistas:
+          type: array
+          items:
+            $ref: "#/components/schemas/NovaConquista"
+
 # =====================================================
 # JOGOS
 # =====================================================
@@ -325,14 +338,9 @@ components:
       type: object
 
       required:
-        - id_aluno
         - jogo
 
       properties:
-
-        id_aluno:
-          type: integer
-          example: 1
 
         jogo:
           type: string
@@ -352,6 +360,30 @@ components:
           type: integer
           nullable: true
           example: 95
+
+        fases_concluidas:
+          type: integer
+          default: 0
+          minimum: 0
+          example: 3
+
+        estrelas:
+          type: integer
+          default: 0
+          minimum: 0
+          example: 3
+
+        detalhes:
+          type: object
+          default: {}
+          example:
+            modo: campanha
+
+        fase_atual:
+          type: integer
+          default: 1
+          minimum: 1
+          example: 4
 
     Partida:
 
@@ -385,10 +417,150 @@ components:
           nullable: true
           example: 95
 
+        fases_concluidas:
+          type: integer
+          example: 3
+
+        estrelas:
+          type: integer
+          example: 3
+
+        detalhes:
+          type: object
+          additionalProperties: true
+
+        fase_atual:
+          type: integer
+          example: 4
+
         criado_em:
           type: string
           format: date-time
           example: 2026-09-18T14:30:00Z
+
+    NovaConquista:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: primeiro_jogo
+        nome:
+          type: string
+          example: Primeiro jogo
+        xp_recebido:
+          type: integer
+          example: 20
+
+    HistoricoXP:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 15
+        id_aluno:
+          type: integer
+          example: 1
+        quantidade:
+          type: integer
+          example: 10
+        origem:
+          type: string
+          example: questao
+        evento_chave:
+          type: string
+          example: exercicio:3
+        descricao:
+          type: string
+          example: Primeiro acerto de uma questão
+        referencia_tipo:
+          type: string
+          nullable: true
+          example: exercicio
+        referencia_id:
+          type: integer
+          nullable: true
+          example: 3
+        criado_em:
+          type: string
+          format: date-time
+
+    XPResponse:
+      type: object
+      properties:
+        id_aluno:
+          type: integer
+          example: 1
+        xp_total:
+          type: integer
+          example: 30
+        historico:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoricoXP"
+
+    ConquistaAluno:
+      type: object
+      additionalProperties: true
+      properties:
+        id_aluno:
+          type: integer
+          example: 1
+        id_conquista:
+          type: integer
+          example: 2
+        xp_recebido:
+          type: integer
+          example: 20
+        desbloqueada_em:
+          type: string
+          format: date-time
+        conquistas:
+          type: object
+          additionalProperties: true
+
+    ConquistasResponse:
+      type: object
+      properties:
+        conquistas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConquistaAluno"
+
+    ProgressoJogo:
+      type: object
+      properties:
+        id_aluno:
+          type: integer
+          example: 1
+        jogo:
+          type: string
+          example: Memória das Frações
+        fases_concluidas:
+          type: integer
+          example: 3
+        fase_atual:
+          type: integer
+          example: 4
+        melhor_pontuacao:
+          type: integer
+          example: 850
+        total_partidas:
+          type: integer
+          example: 2
+        atualizado_em:
+          type: string
+          format: date-time
+        dados_extra:
+          type: object
+          additionalProperties: true
+
+    ProgressoJogosResponse:
+      type: object
+      properties:
+        progresso:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgressoJogo"
 
 # =====================================================
 # RECUPERAÇÃO
@@ -1170,7 +1342,16 @@ paths:
               example:
 
                 mensagem: Partida registrada com sucesso
-                partida: []
+                partida:
+                  id: 10
+                  id_aluno: 1
+                  jogo: Memória das Frações
+                  pontuacao: 850
+                  fases_concluidas: 3
+                  estrelas: 3
+                  fase_atual: 4
+                xp_recebido: 5
+                novas_conquistas: []
 
         "400":
 
@@ -1183,6 +1364,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "403":
+          description: Apenas alunos podem registrar partidas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
         "500":
 
           description: Erro ao registrar partida
@@ -1191,6 +1386,119 @@ paths:
 
             application/json:
 
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /me/xp:
+    get:
+      tags:
+        - Jogos
+      summary: Consultar XP do usuário autenticado
+      description: Retorna o total de XP e o histórico associado ao usuário do token JWT.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Total e histórico de XP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XPResponse"
+              example:
+                id_aluno: 1
+                xp_total: 30
+                historico:
+                  - id: 15
+                    id_aluno: 1
+                    quantidade: 10
+                    origem: questao
+                    evento_chave: exercicio:3
+                    descricao: Primeiro acerto de uma questão
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro ao consultar XP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /me/conquistas:
+    get:
+      tags:
+        - Jogos
+      summary: Consultar conquistas do usuário autenticado
+      description: Retorna as conquistas desbloqueadas pelo usuário do token JWT.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Conquistas desbloqueadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConquistasResponse"
+              example:
+                conquistas:
+                  - id_aluno: 1
+                    id_conquista: 2
+                    xp_recebido: 20
+                    conquistas:
+                      codigo: primeiro_jogo
+                      nome: Primeiro jogo
+                      xp_recompensa: 20
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro ao consultar conquistas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /me/progresso-jogos:
+    get:
+      tags:
+        - Jogos
+      summary: Consultar progresso dos jogos do usuário autenticado
+      description: Retorna o progresso dos jogos associado ao usuário do token JWT.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Progresso dos jogos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressoJogosResponse"
+              example:
+                progresso:
+                  - id_aluno: 1
+                    jogo: Memória das Frações
+                    fases_concluidas: 3
+                    fase_atual: 4
+                    melhor_pontuacao: 850
+                    total_partidas: 2
+                    dados_extra:
+                      modo: campanha
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro ao consultar progresso dos jogos
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/Error"
 
@@ -1236,6 +1544,20 @@ paths:
 
                 items:
                   $ref: "#/components/schemas/Partida"
+
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "403":
+          description: O usuário só pode consultar as próprias partidas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
         "500":
 
@@ -1350,7 +1672,7 @@ paths:
             application/json:
 
               schema:
-                $ref: "#/components/schemas/Tentativa"
+                $ref: "#/components/schemas/TentativaResponse"
 
         "400":
 
@@ -1360,6 +1682,27 @@ paths:
 
             application/json:
 
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "401":
+          description: Token ausente, inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "403":
+          description: Apenas alunos podem registrar tentativas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "404":
+          description: Exercício não encontrado
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/Error"
 
