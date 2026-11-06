@@ -30,7 +30,7 @@ def token_obrigatorio(funcao):
             }), 401
 
         token = cabecalho.split(" ", 1)[1]
-
+    
         try:
             dados_token = jwt.decode(
                 token,
@@ -54,6 +54,22 @@ def token_obrigatorio(funcao):
 
     return decorada
 
+# ==========================================
+# PERMITIR ACESSO SOMENTE A PROFESSORES
+# ==========================================
+
+def professor_obrigatorio(funcao):
+    @wraps(funcao)
+    def decorada(*args, **kwargs):
+
+        if request.usuario.get("tipo_usuario") != "professor":
+            return jsonify({
+                "erro": "Acesso permitido somente para professores"
+            }), 403
+
+        return funcao(*args, **kwargs)
+
+    return decorada
 
 # ==========================================
 # LOGIN
