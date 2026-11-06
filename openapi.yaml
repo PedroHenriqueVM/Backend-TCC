@@ -869,9 +869,6 @@ paths:
 
       summary: Listar usuários
 
-      security:
-        - BearerAuth: []
-
       responses:
 
         "200":
@@ -941,9 +938,6 @@ paths:
 
       summary: Excluir usuário
 
-      security:
-        - BearerAuth: []
-
       parameters:
 
         - name: id
@@ -996,9 +990,6 @@ paths:
 
       summary: Consultar avatar do usuário
 
-      security:
-        - BearerAuth: []
-
       parameters:
 
         - name: id
@@ -1043,9 +1034,6 @@ paths:
         - Usuários
 
       summary: Escolher avatar do usuário
-
-      security:
-        - BearerAuth: []
 
       parameters:
 
@@ -1219,9 +1207,6 @@ paths:
 
       summary: Cadastrar exercício
 
-      security:
-        - BearerAuth: []
-
       requestBody:
 
         required: true
@@ -1263,8 +1248,6 @@ paths:
       tags:
         - Exercícios
       summary: Gerar questões por capítulo usando IA
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_capitulo
           in: path
@@ -1583,9 +1566,6 @@ paths:
 
       summary: Criar uma atividade de recuperação
 
-      security:
-        - BearerAuth: []
-
       requestBody:
 
         required: true
@@ -1719,9 +1699,6 @@ paths:
 
       summary: Listar tentativas do aluno
 
-      security:
-        - BearerAuth: []
-
       parameters:
 
         - name: id_aluno
@@ -1770,9 +1747,6 @@ paths:
 
       summary: Listar turmas
 
-      security:
-        - BearerAuth: []
-
       responses:
 
         "200":
@@ -1796,9 +1770,6 @@ paths:
         - Turmas
 
       summary: Criar turma
-
-      security:
-        - BearerAuth: []
 
       requestBody:
 
@@ -1850,9 +1821,6 @@ paths:
 
       summary: Entrar em uma turma utilizando o código
 
-      security:
-        - BearerAuth: []
-
       requestBody:
 
         required: true
@@ -1892,8 +1860,6 @@ paths:
       tags:
         - Trilhas
       summary: Listar trilhas
-      security:
-        - BearerAuth: []
       responses:
         "200":
           description: Lista de trilhas
@@ -1909,8 +1875,6 @@ paths:
       tags:
         - Trilhas
       summary: Consultar uma trilha e seus capítulos
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_trilha
           in: path
@@ -1944,8 +1908,6 @@ paths:
       tags:
         - Trilhas
       summary: Listar capítulos de uma trilha
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_trilha
           in: path
@@ -1968,8 +1930,6 @@ paths:
       tags:
         - Trilhas
       summary: Consultar a trilha e os capítulos de uma turma
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_turma
           in: path
@@ -2000,8 +1960,6 @@ paths:
       tags:
         - Progresso
       summary: Consultar progresso do aluno
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_aluno
           in: path
@@ -2024,8 +1982,6 @@ paths:
       tags:
         - Progresso
       summary: Marcar capítulo como concluído
-      security:
-        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -2058,9 +2014,6 @@ paths:
         - Dashboard
 
       summary: Dashboard do aluno
-
-      security:
-        - BearerAuth: []
 
       parameters:
 
@@ -2217,8 +2170,6 @@ paths:
       tags:
         - Relatórios
       summary: Gerar relatório individual do aluno em PDF
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_aluno
           in: path
@@ -2252,8 +2203,6 @@ paths:
       tags:
         - Relatórios
       summary: Gerar relatório da turma em PDF
-      security:
-        - BearerAuth: []
       parameters:
         - name: id_turma
           in: path
